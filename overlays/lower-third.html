@@ -355,7 +355,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   var app = document.getElementById("app");
   app.innerHTML =
     '<div class="maker">' +
-      '<h1>Lower Third Maker <span class="ver">Version 8</span></h1>' +
+      '<h1>Lower Third Maker <span class="ver">Version 9</span></h1>' +
       '<p class="sub">Type a name and role, pick a look, then <b>Copy Wirecast link</b> (for an animated Web Page shot) or <b>Download PNG</b> (a still image you can drag into Wirecast).</p>' +
       '<div class="grid">' +
         '<div class="card">' +
@@ -366,9 +366,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           '<label for="f-theme">Look</label><select id="f-theme"></select>' +
           '<label>Accent colour</label>' +
           '<div class="inline"><input type="color" id="f-accent"><div class="swatches" id="swatches"></div></div>' +
-          '<div class="btns" style="margin-top:8px"><button class="btn sm" type="button" id="b-addcolor">+ Save this colour</button></div>' +
-          '<div class="hint">Pick any colour with the square, then save it to the row. Hover a saved colour and click × to remove it.</div>' +
+          '<div class="btns" style="margin-top:12px"><button class="btn primary" type="button" id="b-adddetails">+ Add to service list</button></div>' +
+          '<div class="hint">Adds the section, role and name typed above to the list on the right.</div>' +
           '<details class="more"><summary>More colours</summary>' +
+            '<div class="btns" style="margin-top:8px"><button class="btn sm" type="button" id="b-addcolor">+ Save accent colour</button></div>' +
+            '<div class="hint">Pick any colour with the square, then save it to the row. Hover a saved colour and click × to remove it.</div>' +
             '<label for="c-plate">Box colour</label><div class="inline"><input type="color" id="c-plate"><button class="btn sm" type="button" data-reset="plate">Reset</button></div>' +
             '<label for="c-name">Name colour</label><div class="inline"><input type="color" id="c-name"><button class="btn sm" type="button" data-reset="name">Reset</button></div>' +
             '<label for="c-role">Role colour</label><div class="inline"><input type="color" id="c-role"><button class="btn sm" type="button" data-reset="role">Reset</button></div>' +
@@ -501,6 +503,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   ["f-section", "f-role", "f-name", "f-accent"].forEach(function (id) { $(id).addEventListener("input", function () { update(false); }); });
+  $("b-adddetails").onclick = function () {
+    var clean = function (id) { return $(id).value.replace(/\|/g, "/").trim(); };
+    var sec = clean("f-section"), role = clean("f-role"), name = clean("f-name");
+    if (!name) { toast("Type a name (or main text) first."); $("f-name").focus(); return; }
+    var text = $("f-program").value.replace(/\s+$/, "");
+    $("f-program").value = (text ? text + "\n" : "") + sec + " | " + role + " | " + name;
+    update(false);
+    toast("Added to the service list: " + name);
+    var rows = $("list").children; if (rows.length) rows[rows.length - 1].scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
   $("b-addcolor").onclick = function () {
     var c = $("f-accent").value.toLowerCase();
     if (ACCENTS.indexOf(c) >= 0 || customColors.indexOf(c) >= 0) { toast("That colour is already in the row."); return; }
