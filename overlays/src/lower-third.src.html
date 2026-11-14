@@ -137,6 +137,11 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
 .swatches button { position: relative; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--panel); outline: 1px solid var(--line); cursor: pointer; padding: 0; }
 .swatches .rm { position: absolute; top: -7px; right: -7px; width: 16px; height: 16px; border-radius: 50%; background: #111827; color: #fff; font-size: 10px; line-height: 16px; text-align: center; display: none; }
 .swatches button.custom:hover .rm, .swatches button.custom:focus-visible .rm { display: block; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 4px; }
+.seg button { flex: 1; font: inherit; font-size: 13px; font-weight: 600; padding: 7px 0; border: 0; background: var(--panel); color: var(--ink); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--brand); color: #fff; }
+.checks { display: flex; gap: 16px; flex-wrap: wrap; }
 details.more { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 details.more summary { cursor: pointer; font-size: 14px; font-weight: 600; }
 details.more .inline { margin-top: 2px; }
@@ -254,6 +259,11 @@ details.more .inline { margin-top: 2px; }
     nameEl.style.marginLeft = (+o.nameDX || 0) + "px"; nameEl.style.top = (+o.nameDY || 0) + "px";
     roleEl.style.marginLeft = (+o.roleDX || 0) + "px"; roleEl.style.top = (+o.roleDY || 0) + "px";
     stage.setAttribute("data-ns", +o.nameScale || 1); stage.setAttribute("data-rs", +o.roleScale || 1);
+    var pillEl = stage.querySelector(".pill");
+    applyTextStyle(nameEl, textStyleOf(o, "name"));
+    applyTextStyle(roleEl, textStyleOf(o, "role"));
+    applyTextStyle(pillEl, textStyleOf(o, "tag"));
+    pillEl.style.fontSize = (TEXT_BASE.tag * (+o.tagScale || 1)) + "px";
     var lt = stage.querySelector(".lt");
     lt.style.left = (typeof o.boxX === "number" ? o.boxX : 130) + "px";
     lt.style.bottom = (typeof o.boxB === "number" ? o.boxB : 105) + "px";
@@ -279,6 +289,7 @@ details.more .inline { margin-top: 2px; }
       }
     }
     fitText(stage);
+    fixStretch(pillEl);
   }
 
   // Shrink long names so the plate never runs off screen.
@@ -289,8 +300,10 @@ details.more .inline { margin-top: 2px; }
     [[name, 62 * ns, 38 * ns], [role, 27 * rs, 18 * rs]].forEach(function (t) {
       var el = t[0], size = t[1];
       el.style.fontSize = size + "px"; el.style.whiteSpace = ""; el.style.maxWidth = "";
-      while (el.scrollWidth > max && size > t[2]) { size -= 2; el.style.fontSize = size + "px"; }
-      if (el.scrollWidth > max) { el.style.whiteSpace = "normal"; el.style.maxWidth = max + "px"; }
+      var w = +el.getAttribute("data-w") || 1;
+      while (el.scrollWidth * w > max && size > t[2]) { size -= 2; el.style.fontSize = size + "px"; }
+      if (el.scrollWidth * w > max) { el.style.whiteSpace = "normal"; el.style.maxWidth = (max / w) + "px"; }
+      fixStretch(el);
     });
   }
 
@@ -307,6 +320,33 @@ details.more .inline { margin-top: 2px; }
 
   function waitForFonts() {
     return (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+  }
+
+  // Text style for the name, role and tag. Size is stored as a scale (1 = normal).
+  var TEXT_BASE = { name: 62, role: 27, tag: 21 };
+  var TEXT_DEFAULTS = {
+    name: { font: "Montserrat", weight: 700, width: 100, spacing: 0, caps: false, italic: false },
+    role: { font: "Montserrat", weight: 600, width: 100, spacing: 13, caps: true, italic: false },
+    tag:  { font: "Montserrat", weight: 700, width: 100, spacing: 14, caps: true, italic: false }
+  };
+  var FONTS = ["Montserrat", "Avenir Next", "Helvetica Neue", "Futura", "Gill Sans", "Optima", "Arial", "Verdana",
+    "Trebuchet MS", "Georgia", "Palatino", "Baskerville", "Times New Roman", "Didot", "Impact"];
+  function textStyleOf(o, k) { return Object.assign({}, TEXT_DEFAULTS[k], (o.textStyle || {})[k] || {}); }
+  function applyTextStyle(el, v) {
+    el.style.fontFamily = v.font === "Montserrat" ? "" : '"' + v.font + '", "Montserrat", sans-serif';
+    el.style.fontWeight = v.weight;
+    el.style.letterSpacing = (v.spacing / 100) + "em";
+    el.style.textTransform = v.caps ? "uppercase" : "none";
+    el.style.fontStyle = v.italic ? "italic" : "normal";
+    var w = v.width / 100;
+    el.style.transformOrigin = "left center";
+    el.style.transform = w !== 1 ? "scaleX(" + w + ")" : "";
+    el.setAttribute("data-w", w);
+  }
+  // Letters stretched with scaleX don't take up more room on their own, so add the difference as a margin.
+  function fixStretch(el) {
+    var w = +el.getAttribute("data-w") || 1;
+    el.style.marginRight = w !== 1 ? ((w - 1) * el.offsetWidth) + "px" : "";
   }
 
   var params = new URLSearchParams(location.search);
@@ -340,6 +380,8 @@ details.more .inline { margin-top: 2px; }
       boxH: +(params.get("boxh") || 0),
       boxX: params.has("boxx") ? +params.get("boxx") : 130,
       boxB: params.has("boxb") ? +params.get("boxb") : 105,
+      textStyle: (function () { try { return JSON.parse(params.get("ts") || "{}"); } catch (e) { return {}; } })(),
+      tagScale: +(params.get("tgs") || 1),
       nameDX: +(params.get("ndx") || 0), nameDY: +(params.get("ndy") || 0), nameScale: +(params.get("ns") || 1),
       roleDX: +(params.get("rdx") || 0), roleDY: +(params.get("rdy") || 0), roleScale: +(params.get("rs") || 1),
       logoBg: params.get("logobg") || "circle",
@@ -368,12 +410,15 @@ details.more .inline { margin-top: 2px; }
     role: { dx: +state.roleDX || 0, dy: +state.roleDY || 0, scale: +state.roleScale || 1 }
   };
   var textSel = null;  // "name", "role" or null
+  var textStyle = (state.textStyle && typeof state.textStyle === "object") ? state.textStyle : {};
+  var tagScale = +state.tagScale || 1;
+  var styleTarget = "name";
   try { logoOriginal = localStorage.getItem("lt-logo") || ""; } catch (e) {}
 
   var app = document.getElementById("app");
   app.innerHTML =
     '<div class="maker">' +
-      '<h1>Lower Third Maker <span class="ver">Version 12</span></h1>' +
+      '<h1>Lower Third Maker <span class="ver">Version 13</span></h1>' +
       '<p class="sub">Type a name and role, pick a look, then <b>Copy Wirecast link</b> (for an animated Web Page shot) or <b>Download PNG</b> (a still image you can drag into Wirecast).</p>' +
       '<div class="grid">' +
         '<div class="card">' +
@@ -382,6 +427,18 @@ details.more .inline { margin-top: 2px; }
           '<label for="f-role">Role</label><input type="text" id="f-role" placeholder="e.g. Scripture Reading">' +
           '<label for="f-name">Name</label><input type="text" id="f-name" placeholder="e.g. Elder Kwame Asante">' +
           '<label for="f-theme">Look</label><select id="f-theme"></select>' +
+          '<details class="more" id="styleBox"><summary>Text style (font, size, boldness…)</summary>' +
+            '<div class="seg" id="styleSeg"><button type="button" data-t="name">Name</button><button type="button" data-t="role">Role</button><button type="button" data-t="tag">Tag</button></div>' +
+            '<label for="s-font">Font</label><select id="s-font"></select>' +
+            '<label for="s-size">Size<span class="val" id="v-size"></span></label><input type="range" id="s-size" min="10" max="200" step="1">' +
+            '<label for="s-weight">Boldness<span class="val" id="v-weight"></span></label><input type="range" id="s-weight" min="300" max="900" step="100">' +
+            '<label for="s-width">Width<span class="val" id="v-width"></span></label><input type="range" id="s-width" min="60" max="160" step="1">' +
+            '<label for="s-spacing">Letter spacing<span class="val" id="v-spacing"></span></label><input type="range" id="s-spacing" min="-8" max="50" step="1">' +
+            '<div class="checks"><label class="check"><input type="checkbox" id="s-caps"> ALL CAPITALS</label>' +
+            '<label class="check"><input type="checkbox" id="s-italic"> <i>Italic</i></label></div>' +
+            '<div class="hint">Fonts other than Montserrat come from the Mac, so they show up the same on that computer.</div>' +
+            '<div class="btns"><button class="btn sm" type="button" id="s-reset">Reset this text</button></div>' +
+          '</details>' +
           '<label>Accent colour</label>' +
           '<div class="inline"><input type="color" id="f-accent"><div class="swatches" id="swatches"></div></div>' +
           '<div class="btns" style="margin-top:12px"><button class="btn primary" type="button" id="b-adddetails">+ Add to service list</button></div>' +
@@ -500,7 +557,8 @@ details.more .inline { margin-top: 2px; }
       logoSide: $("f-logoplace").value === "boxright" ? "right" : "left",
       logoDX: logoDX, logoDY: logoDY, boxX: boxX, boxB: boxB,
       nameDX: txt.name.dx, nameDY: txt.name.dy, nameScale: txt.name.scale,
-      roleDX: txt.role.dx, roleDY: txt.role.dy, roleScale: txt.role.scale
+      roleDX: txt.role.dx, roleDY: txt.role.dy, roleScale: txt.role.scale,
+      textStyle: textStyle, tagScale: tagScale
     };
   }
 
@@ -544,7 +602,9 @@ details.more .inline { margin-top: 2px; }
       logoX: o.logoX, logoY: o.logoY, logoPlace: $("f-logoplace").value,
       customColors: customColors, plateColor: extraColors.plate, nameColor: extraColors.name, roleColor: extraColors.role,
       logoDX: logoDX, logoDY: logoDY, boxX: boxX, boxB: boxB,
-      nameDX: o.nameDX, nameDY: o.nameDY, nameScale: o.nameScale, roleDX: o.roleDX, roleDY: o.roleDY, roleScale: o.roleScale };
+      nameDX: o.nameDX, nameDY: o.nameDY, nameScale: o.nameScale, roleDX: o.roleDX, roleDY: o.roleDY, roleScale: o.roleScale,
+      textStyle: textStyle, tagScale: tagScale };
+    syncStyleControls();
     // Pickers show the current colour, or the look's default when not changed.
     $("c-plate").value = extraColors.plate || (o.theme === "light" ? "#ffffff" : "#0c162e");
     $("c-name").value = extraColors.name || (o.theme === "light" ? "#0f1b33" : "#ffffff");
@@ -793,7 +853,11 @@ details.more .inline { margin-top: 2px; }
   function textPointerDown(e, which, handle) {
     e.preventDefault();
     pStage.classList.remove("animate");
-    if (textSel !== which || logoSelected || boxSelected) { textSel = which; logoSelected = false; boxSelected = false; update(false); }
+    if (textSel !== which || logoSelected || boxSelected) {
+      textSel = which; logoSelected = false; boxSelected = false;
+      styleTarget = which; $("styleBox").open = true;
+      update(false);
+    }
     var k = pStage.getBoundingClientRect().width / 1920, px = e.clientX, py = e.clientY;
     var t = txt[which], dx0 = t.dx, dy0 = t.dy, s0 = t.scale;
     if (handle) {
@@ -817,6 +881,41 @@ details.more .inline { margin-top: 2px; }
       update(false);
     });
   }
+  // ---- Text style controls ----
+  FONTS.forEach(function (f) {
+    var op = document.createElement("option"); op.value = f; op.textContent = f === "Montserrat" ? "Montserrat (built in)" : f;
+    op.style.fontFamily = '"' + f + '"'; $("s-font").appendChild(op);
+  });
+  var WEIGHT_NAMES = { 300: "Light", 400: "Regular", 500: "Medium", 600: "Semi-bold", 700: "Bold", 800: "Extra-bold", 900: "Black" };
+  var SIZE_RANGE = { name: [20, 200], role: [10, 100], tag: [10, 70] };
+  function scaleOf(k) { return k === "tag" ? tagScale : txt[k].scale; }
+  function setScale(k, v) { if (k === "tag") tagScale = v; else txt[k].scale = v; }
+  function syncStyleControls() {
+    var v = textStyleOf({ textStyle: textStyle }, styleTarget);
+    Array.prototype.forEach.call($("styleSeg").children, function (b) { b.classList.toggle("on", b.getAttribute("data-t") === styleTarget); });
+    var px = Math.round(TEXT_BASE[styleTarget] * scaleOf(styleTarget));
+    $("s-size").min = SIZE_RANGE[styleTarget][0]; $("s-size").max = SIZE_RANGE[styleTarget][1];
+    $("s-font").value = v.font; $("s-size").value = px; $("s-weight").value = v.weight; $("s-width").value = v.width;
+    $("s-spacing").value = v.spacing; $("s-caps").checked = v.caps; $("s-italic").checked = v.italic;
+    $("v-size").textContent = px + " px"; $("v-weight").textContent = WEIGHT_NAMES[v.weight] || v.weight;
+    $("v-width").textContent = v.width + "%"; $("v-spacing").textContent = (v.spacing / 100).toFixed(2) + " em";
+  }
+  function setStyle(key, value) {
+    var cur = textStyle[styleTarget] = Object.assign({}, textStyle[styleTarget] || {});
+    cur[key] = value; update(false);
+  }
+  Array.prototype.forEach.call($("styleSeg").children, function (b) {
+    b.onclick = function () { styleTarget = b.getAttribute("data-t"); syncStyleControls(); };
+  });
+  $("s-font").addEventListener("change", function () { setStyle("font", $("s-font").value); });
+  $("s-size").addEventListener("input", function () { setScale(styleTarget, +$("s-size").value / TEXT_BASE[styleTarget]); update(false); });
+  $("s-weight").addEventListener("input", function () { setStyle("weight", +$("s-weight").value); });
+  $("s-width").addEventListener("input", function () { setStyle("width", +$("s-width").value); });
+  $("s-spacing").addEventListener("input", function () { setStyle("spacing", +$("s-spacing").value); });
+  $("s-caps").addEventListener("change", function () { setStyle("caps", $("s-caps").checked); });
+  $("s-italic").addEventListener("change", function () { setStyle("italic", $("s-italic").checked); });
+  $("s-reset").onclick = function () { delete textStyle[styleTarget]; setScale(styleTarget, 1); update(false); };
+
   $("b-textreset").onclick = function () {
     txt.name = { dx: 0, dy: 0, scale: 1 }; txt.role = { dx: 0, dy: 0, scale: 1 }; update(true);
   };
@@ -842,6 +941,8 @@ details.more .inline { margin-top: 2px; }
     if (o.boxB !== 105) q.set("boxb", o.boxB);
     [["ndx", o.nameDX, 0], ["ndy", o.nameDY, 0], ["ns", o.nameScale, 1], ["rdx", o.roleDX, 0], ["rdy", o.roleDY, 0], ["rs", o.roleScale, 1]]
       .forEach(function (v) { if (v[1] !== v[2]) q.set(v[0], v[1]); });
+    if (o.textStyle && Object.keys(o.textStyle).length) q.set("ts", JSON.stringify(o.textStyle));
+    if (o.tagScale && o.tagScale !== 1) q.set("tgs", o.tagScale);
     if (o.plateColor) q.set("platecolor", o.plateColor.replace("#", ""));
     if (o.nameColor) q.set("namecolor", o.nameColor.replace("#", ""));
     if (o.roleColor) q.set("rolecolor", o.roleColor.replace("#", ""));
@@ -919,7 +1020,7 @@ details.more .inline { margin-top: 2px; }
       if (p.length === 2) return { line: idx, section: "", role: p[0], name: p[1] };
       return { line: idx, section: p[0], role: p[1], name: p.slice(2).join(" | ") };
     }).filter(Boolean).map(function (it) {
-      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "logoSide", "logoDX", "logoDY", "boxW", "boxH", "boxX", "boxB", "nameDX", "nameDY", "nameScale", "roleDX", "roleDY", "roleScale", "plateColor", "nameColor", "roleColor"].forEach(function (k) { it[k] = base[k]; });
+      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "logoSide", "logoDX", "logoDY", "boxW", "boxH", "boxX", "boxB", "nameDX", "nameDY", "nameScale", "roleDX", "roleDY", "roleScale", "textStyle", "tagScale", "plateColor", "nameColor", "roleColor"].forEach(function (k) { it[k] = base[k]; });
       return it;
     });
   }

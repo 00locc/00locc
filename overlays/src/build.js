@@ -11,10 +11,12 @@ const here = __dirname;
 const mods = path.join(here, "node_modules");
 const read = (p) => fs.readFileSync(p, "utf8");
 
-const fonts = [500, 600, 700, 800].map((w) => {
-  const file = path.join(mods, "@fontsource/montserrat/files", `montserrat-latin-${w}-normal.woff2`);
+const faces = [300, 400, 500, 600, 700, 800, 900].map((w) => [w, "normal"])
+  .concat([400, 600, 700, 800].map((w) => [w, "italic"]));
+const fonts = faces.map(([w, style]) => {
+  const file = path.join(mods, "@fontsource/montserrat/files", `montserrat-latin-${w}-${style}.woff2`);
   const b64 = fs.readFileSync(file).toString("base64");
-  return `@font-face{font-family:"Montserrat";font-style:normal;font-weight:${w};font-display:block;src:url(data:font/woff2;base64,${b64}) format("woff2");}`;
+  return `@font-face{font-family:"Montserrat";font-style:${style};font-weight:${w};font-display:block;src:url(data:font/woff2;base64,${b64}) format("woff2");}`;
 }).join("\n");
 
 const libs = [
