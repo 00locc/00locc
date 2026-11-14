@@ -61,8 +61,11 @@ body.overlay-mode { background: transparent; overflow: hidden; }
   border-radius: 0 10px 10px 0;
   box-shadow: 0 10px 30px rgba(0,0,0,.28);
 }
-.logo { width: 92px; height: 92px; border-radius: 50%; background: #fff center / 80% no-repeat; flex: none; display: none; }
+.logo { width: var(--logo-size, 92px); height: var(--logo-size, 92px); border-radius: 50%; background: #fff; padding: 10%; flex: none; display: none; }
 .logo.on { display: block; }
+.logo-img { width: 100%; height: 100%; background: center / contain no-repeat; }
+.logo.bare { background: transparent; border-radius: 0; padding: 0; }
+.logo.white .logo-img { filter: brightness(0) invert(1); }
 .text { display: flex; flex-direction: column; min-width: 0; }
 .name { font-weight: 700; font-size: 62px; line-height: 1.08; color: var(--name); white-space: nowrap; }
 .role { font-weight: 600; font-size: 27px; letter-spacing: .13em; text-transform: uppercase; color: var(--role); margin-top: 6px; white-space: nowrap; }
@@ -99,7 +102,9 @@ body.overlay-mode { background: transparent; overflow: hidden; }
 @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
 .card h2 { font-size: 15px; margin: 0 0 12px; }
+input[type=range] { width: 100%; }
 label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 10px 0 4px; text-transform: uppercase; letter-spacing: .06em; }
+label.check { display: flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--ink); font-weight: 500; margin: 10px 0 0; cursor: pointer; }
 input[type=text], select, textarea {
   width: 100%; font: inherit; font-size: 15px; color: var(--ink); background: var(--page);
   border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px;
@@ -141,7 +146,7 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
       <div class="row">
         <div class="bar"></div>
         <div class="plate">
-          <div class="logo"></div>
+          <div class="logo"><div class="logo-img"></div></div>
           <div class="text">
             <div class="name"></div>
             <div class="role"></div>
@@ -163,7 +168,7 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
 
   var THEMES = { royal: "Royal (dark plate)", light: "Light (white plate)", minimal: "Minimal (no box)" };
   var ACCENTS = ["#d4a63a", "#2bb3a3", "#3b82f6", "#c0392b", "#8e5bd8", "#e67e22"];
-  var DEFAULTS = { section: "Sabbath School", role: "Opening Prayer", name: "Jane Mensah", theme: "royal", accent: "#d4a63a", logo: false };
+  var DEFAULTS = { section: "Sabbath School", role: "Opening Prayer", name: "Jane Mensah", theme: "royal", accent: "#d4a63a", logoSize: 92, logoBg: "circle", logoKnockout: false, logoWhite: false };
   var SAMPLE_PROGRAM = [
     "Sabbath School | Superintendent | Name Here",
     "Sabbath School | Facilitator | Name Here",
@@ -187,7 +192,10 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
     stage.querySelector(".role").textContent = o.role || "";
     var logo = stage.querySelector(".logo");
     logo.classList.toggle("on", !!o.logoSrc);
-    logo.style.backgroundImage = o.logoSrc ? 'url("' + o.logoSrc + '")' : "";
+    logo.classList.toggle("bare", o.logoBg === "none");
+    logo.classList.toggle("white", !!o.logoWhite);
+    logo.style.setProperty("--logo-size", (+o.logoSize || 92) + "px");
+    logo.querySelector(".logo-img").style.backgroundImage = o.logoSrc ? 'url("' + o.logoSrc + '")' : "";
     fitText(stage);
   }
 
@@ -234,7 +242,10 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
       name: params.get("name") || "",
       theme: params.get("theme") || "royal",
       accent: params.get("accent") ? "#" + params.get("accent").replace(/^#/, "") : DEFAULTS.accent,
-      logoSrc: logoParam ? (logoParam === "1" ? "logo.png" : logoParam) : ""
+      logoSrc: logoParam ? (logoParam === "1" ? "logo.png" : logoParam) : "",
+      logoSize: params.get("logosize") || 92,
+      logoBg: params.get("logobg") || "circle",
+      logoWhite: params.get("logocolor") === "white"
     });
     var fit = function () { scaleTo(stage, vp); };
     fit();
@@ -248,7 +259,8 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
 
   // ---------- Maker mode ----------
   var state = load();
-  var logoData = "";
+  var logoOriginal = "", logoData = "";
+  try { logoOriginal = localStorage.getItem("lt-logo") || ""; } catch (e) {}
 
   var app = document.getElementById("app");
   app.innerHTML =
@@ -266,7 +278,15 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
           '<div class="inline"><input type="color" id="f-accent"><div class="swatches" id="swatches"></div></div>' +
           '<label for="f-logo">Logo (optional, PNG)</label>' +
           '<input type="file" id="f-logo" accept="image/png,image/jpeg,image/svg+xml">' +
-          '<div class="hint">For the Wirecast link, save your logo as <b>logo.png</b> in the same folder as this file.</div>' +
+          '<div id="logoOpts" hidden>' +
+            '<label for="f-logosize">Logo size</label><input type="range" id="f-logosize" min="60" max="170" step="2">' +
+            '<label for="f-logobg">Behind the logo</label>' +
+            '<select id="f-logobg"><option value="circle">White circle</option><option value="none">Nothing (transparent)</option></select>' +
+            '<label class="check"><input type="checkbox" id="f-logoknock"> Remove white background from the logo image</label>' +
+            '<label class="check"><input type="checkbox" id="f-logowhite"> Make the logo all white</label>' +
+            '<div class="btns"><button class="btn sm" type="button" id="b-logoclear">Remove logo</button></div>' +
+          '</div>' +
+          '<div class="hint">The maker remembers your logo. For the Wirecast link, also save it as <b>logo.png</b> in the same folder as this file.</div>' +
           '<div class="btns">' +
             '<button class="btn primary" id="b-copy">Copy Wirecast link</button>' +
             '<button class="btn" id="b-png">Download PNG</button>' +
@@ -301,6 +321,8 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
 
   $("f-section").value = state.section; $("f-role").value = state.role; $("f-name").value = state.name;
   themeSel.value = state.theme; $("f-accent").value = state.accent; $("f-program").value = state.program || SAMPLE_PROGRAM;
+  $("f-logosize").value = state.logoSize; $("f-logobg").value = state.logoBg;
+  $("f-logoknock").checked = !!state.logoKnockout; $("f-logowhite").checked = !!state.logoWhite;
 
   var preview = $("preview");
   var pStage = makeStage();
@@ -309,7 +331,9 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
   function current() {
     return {
       section: $("f-section").value.trim(), role: $("f-role").value.trim(), name: $("f-name").value.trim(),
-      theme: themeSel.value, accent: $("f-accent").value, logoSrc: logoData
+      theme: themeSel.value, accent: $("f-accent").value, logoSrc: logoData,
+      logoSize: +$("f-logosize").value, logoBg: $("f-logobg").value,
+      logoKnockout: $("f-logoknock").checked, logoWhite: $("f-logowhite").checked
     };
   }
 
@@ -318,7 +342,9 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
     fillStage(pStage, o);
     scaleTo(pStage, preview);
     if (animate) replay(pStage);
-    state = { section: o.section, role: o.role, name: o.name, theme: o.theme, accent: o.accent, program: $("f-program").value };
+    $("logoOpts").hidden = !logoData;
+    state = { section: o.section, role: o.role, name: o.name, theme: o.theme, accent: o.accent, program: $("f-program").value,
+      logoSize: o.logoSize, logoBg: o.logoBg, logoKnockout: o.logoKnockout, logoWhite: o.logoWhite };
     save(state);
     renderList();
   }
@@ -326,13 +352,52 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
   ["f-section", "f-role", "f-name", "f-accent"].forEach(function (id) { $(id).addEventListener("input", function () { update(false); }); });
   themeSel.addEventListener("change", function () { update(true); });
   $("f-program").addEventListener("input", function () { update(false); });
+  // Logo: keep the original, derive the shown version (optionally with white knocked out).
+  function knockOutWhite(src) {
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () {
+        var w = img.naturalWidth || 512, h = img.naturalHeight || 512, k = Math.min(1, 1024 / Math.max(w, h));
+        var c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round(h * k);
+        var x = c.getContext("2d"); x.drawImage(img, 0, 0, c.width, c.height);
+        try {
+          var d = x.getImageData(0, 0, c.width, c.height), px = d.data;
+          for (var i = 0; i < px.length; i += 4) {
+            var m = Math.min(px[i], px[i + 1], px[i + 2]);
+            if (m > 200) px[i + 3] = Math.round(px[i + 3] * Math.max(0, (245 - m) / 45));
+          }
+          x.putImageData(d, 0, 0);
+          resolve(c.toDataURL("image/png"));
+        } catch (e) { resolve(src); }
+      };
+      img.onerror = function () { resolve(src); };
+      img.src = src;
+    });
+  }
+  function refreshLogo(animate) {
+    if (!logoOriginal) { logoData = ""; update(animate); return; }
+    var p = $("f-logoknock").checked ? knockOutWhite(logoOriginal) : Promise.resolve(logoOriginal);
+    p.then(function (src) { logoData = src; update(animate); });
+  }
   $("f-logo").addEventListener("change", function (e) {
     var f = e.target.files && e.target.files[0];
-    if (!f) { logoData = ""; update(false); return; }
+    if (!f) return;
     var r = new FileReader();
-    r.onload = function () { logoData = r.result; update(true); };
+    r.onload = function () {
+      logoOriginal = r.result;
+      try { localStorage.setItem("lt-logo", logoOriginal); } catch (err) {}
+      refreshLogo(true);
+    };
     r.readAsDataURL(f);
   });
+  $("f-logosize").addEventListener("input", function () { update(false); });
+  ["f-logobg", "f-logowhite"].forEach(function (id) { $(id).addEventListener("change", function () { update(false); }); });
+  $("f-logoknock").addEventListener("change", function () { refreshLogo(false); });
+  $("b-logoclear").onclick = function () {
+    logoOriginal = ""; $("f-logo").value = "";
+    try { localStorage.removeItem("lt-logo"); } catch (e) {}
+    refreshLogo(false);
+  };
   window.addEventListener("resize", function () { scaleTo(pStage, preview); });
 
   // ---------- Links for Wirecast ----------
@@ -344,7 +409,12 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
     q.set("name", o.name || "");
     q.set("theme", o.theme);
     q.set("accent", o.accent.replace("#", ""));
-    if (o.logoSrc) q.set("logo", "1");
+    if (o.logoSrc) {
+      q.set("logo", "1");
+      if (o.logoSize !== 92) q.set("logosize", o.logoSize);
+      if (o.logoBg === "none") q.set("logobg", "none");
+      if (o.logoWhite) q.set("logocolor", "white");
+    }
     return base + "?" + q.toString();
   }
 
@@ -405,7 +475,8 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
       if (p.length === 2) return { section: "", role: p[0], name: p[1] };
       return { section: p[0], role: p[1], name: p.slice(2).join(" | ") };
     }).filter(Boolean).map(function (it) {
-      it.theme = base.theme; it.accent = base.accent; it.logoSrc = base.logoSrc; return it;
+      ["theme", "accent", "logoSrc", "logoSize", "logoBg", "logoWhite"].forEach(function (k) { it[k] = base[k]; });
+      return it;
     });
   }
 
@@ -464,7 +535,7 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
   }
   function save(s) { try { localStorage.setItem("lt-maker", JSON.stringify(s)); } catch (e) {} }
 
-  update(false);
+  refreshLogo(false);
   waitForFonts().then(function () { update(true); });
 })();
 </script>
