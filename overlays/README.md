@@ -38,3 +38,15 @@ Edit `src/lower-third.src.html`, then rebuild:
 npm install --prefix overlays/src html-to-image@1.11.11 jszip@3.10.1 @fontsource/montserrat@5
 node overlays/src/build.js
 ```
+
+## Option 2: type names in Wirecast (blank Royal boxes)
+`blank-boxes/` has the Royal box with no name or role, so you can type them in Wirecast:
+- `Royal box - Divine Service.png`, `Royal box - Sabbath School.png`, `Royal box - no tag.png`
+
+Set up once per role:
+1. In a title shot, open **Shot Layers**, click **+** and add the box PNG. Move it **below** the title.
+2. In **Title Properties**, pick a text-only template (no coloured bar).
+3. Heading (name): **Avenir Next**, Demi Bold, white. Subheading (role): Avenir Next, gold `#D4A63A`, typed in CAPITALS.
+4. Drag the text in the preview so it sits inside the navy box.
+
+Each week: click the shot and type the new name in **Heading**.
