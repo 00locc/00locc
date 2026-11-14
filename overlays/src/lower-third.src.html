@@ -75,13 +75,17 @@ body.overlay-mode { background: transparent; overflow: hidden; }
   background: #fff; border: calc(2px * var(--inv, 1)) solid #3b82f6; border-radius: calc(3px * var(--inv, 1)); }
 .preview .logo.selected > .h, .preview .lt.selected > .h { display: block; }
 .preview .lt { cursor: move; touch-action: none; }
+.sel { position: absolute; display: none; z-index: 5; pointer-events: none;
+  outline: calc(2px * var(--inv, 1)) dashed #3b82f6; outline-offset: calc(4px * var(--inv, 1)); }
+.sel .h { display: block; pointer-events: auto; }
 .preview .lt.selected { outline: calc(2px * var(--inv, 1)) dashed #3b82f6; outline-offset: calc(8px * var(--inv, 1)); }
 .h-nw { left: calc(-11px * var(--inv, 1)); top: calc(-11px * var(--inv, 1)); cursor: nwse-resize; }
 .h-ne { right: calc(-11px * var(--inv, 1)); top: calc(-11px * var(--inv, 1)); cursor: nesw-resize; }
 .h-sw { left: calc(-11px * var(--inv, 1)); bottom: calc(-11px * var(--inv, 1)); cursor: nesw-resize; }
 .h-se { right: calc(-11px * var(--inv, 1)); bottom: calc(-11px * var(--inv, 1)); cursor: nwse-resize; }
 .preview .logo.on:active { cursor: grabbing; }
-.text { display: flex; flex-direction: column; min-width: 0; }
+.text { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.name, .role { position: relative; }
 .name { font-weight: 700; font-size: 62px; line-height: 1.08; color: var(--name); white-space: nowrap; }
 .role { font-weight: 600; font-size: 27px; letter-spacing: .13em; text-transform: uppercase; color: var(--role); margin-top: 6px; white-space: nowrap; }
 .role:empty { display: none; }
@@ -244,6 +248,12 @@ details.more .inline { margin-top: 2px; }
     plate.style.paddingLeft = ""; plate.style.paddingRight = ""; logo.style.right = "";
     plate.style.minWidth = +o.boxW > 0 ? o.boxW + "px" : "";
     plate.style.minHeight = +o.boxH > 0 ? o.boxH + "px" : "";
+    // Name and role can each be nudged (dx/dy) and scaled inside the box.
+    var nameEl = stage.querySelector(".name"), roleEl = stage.querySelector(".role");
+    // Sideways moves make room in the box; up/down moves shift the text itself.
+    nameEl.style.marginLeft = (+o.nameDX || 0) + "px"; nameEl.style.top = (+o.nameDY || 0) + "px";
+    roleEl.style.marginLeft = (+o.roleDX || 0) + "px"; roleEl.style.top = (+o.roleDY || 0) + "px";
+    stage.setAttribute("data-ns", +o.nameScale || 1); stage.setAttribute("data-rs", +o.roleScale || 1);
     var lt = stage.querySelector(".lt");
     lt.style.left = (typeof o.boxX === "number" ? o.boxX : 130) + "px";
     lt.style.bottom = (typeof o.boxB === "number" ? o.boxB : 105) + "px";
@@ -275,7 +285,8 @@ details.more .inline { margin-top: 2px; }
   function fitText(stage) {
     var name = stage.querySelector(".name"), role = stage.querySelector(".role");
     var max = 1380;
-    [[name, 62, 38], [role, 27, 18]].forEach(function (t) {
+    var ns = +stage.getAttribute("data-ns") || 1, rs = +stage.getAttribute("data-rs") || 1;
+    [[name, 62 * ns, 38 * ns], [role, 27 * rs, 18 * rs]].forEach(function (t) {
       var el = t[0], size = t[1];
       el.style.fontSize = size + "px"; el.style.whiteSpace = ""; el.style.maxWidth = "";
       while (el.scrollWidth > max && size > t[2]) { size -= 2; el.style.fontSize = size + "px"; }
@@ -329,6 +340,8 @@ details.more .inline { margin-top: 2px; }
       boxH: +(params.get("boxh") || 0),
       boxX: params.has("boxx") ? +params.get("boxx") : 130,
       boxB: params.has("boxb") ? +params.get("boxb") : 105,
+      nameDX: +(params.get("ndx") || 0), nameDY: +(params.get("ndy") || 0), nameScale: +(params.get("ns") || 1),
+      roleDX: +(params.get("rdx") || 0), roleDY: +(params.get("rdy") || 0), roleScale: +(params.get("rs") || 1),
       logoBg: params.get("logobg") || "circle",
       logoWhite: params.get("logocolor") === "white",
       logoX: params.has("logox") ? +params.get("logox") : null,
@@ -350,12 +363,17 @@ details.more .inline { margin-top: 2px; }
   var logoPos = (typeof state.logoX === "number" && typeof state.logoY === "number") ? { x: state.logoX, y: state.logoY } : null;
   var logoDX = +state.logoDX || 0, logoDY = +state.logoDY || 0, logoSelected = false;
   var boxX = typeof state.boxX === "number" ? state.boxX : 130, boxB = typeof state.boxB === "number" ? state.boxB : 105, boxSelected = false;
+  var txt = {
+    name: { dx: +state.nameDX || 0, dy: +state.nameDY || 0, scale: +state.nameScale || 1 },
+    role: { dx: +state.roleDX || 0, dy: +state.roleDY || 0, scale: +state.roleScale || 1 }
+  };
+  var textSel = null;  // "name", "role" or null
   try { logoOriginal = localStorage.getItem("lt-logo") || ""; } catch (e) {}
 
   var app = document.getElementById("app");
   app.innerHTML =
     '<div class="maker">' +
-      '<h1>Lower Third Maker <span class="ver">Version 11</span></h1>' +
+      '<h1>Lower Third Maker <span class="ver">Version 12</span></h1>' +
       '<p class="sub">Type a name and role, pick a look, then <b>Copy Wirecast link</b> (for an animated Web Page shot) or <b>Download PNG</b> (a still image you can drag into Wirecast).</p>' +
       '<div class="grid">' +
         '<div class="card">' +
@@ -378,7 +396,9 @@ details.more .inline { margin-top: 2px; }
           '<label for="f-boxw">Box width<span class="val" id="v-boxw"></span></label><input type="range" id="f-boxw" min="0" max="1600" step="10">' +
           '<label for="f-boxh">Box height<span class="val" id="v-boxh"></span></label><input type="range" id="f-boxh" min="0" max="400" step="4">' +
           '<div class="hint">All the way left = the box fits the text by itself. You can also click the box in the preview to move it or drag its corners to resize it.</div>' +
-          '<div class="btns"><button class="btn sm" type="button" id="b-boxreset">Put the box back in its usual spot</button></div>' +
+          '<div class="hint">Click the name or the role in the preview to move it or drag its corners to resize it.</div>' +
+          '<div class="btns"><button class="btn sm" type="button" id="b-boxreset">Put the box back in its usual spot</button>' +
+          '<button class="btn sm" type="button" id="b-textreset">Reset text size and position</button></div>' +
           '<label for="f-logo">Logo (optional, PNG)</label>' +
           '<input type="file" id="f-logo" accept="image/png,image/jpeg,image/svg+xml">' +
           '<div id="logoOpts" hidden>' +
@@ -478,7 +498,9 @@ details.more .inline { margin-top: 2px; }
       logoKnockout: $("f-logoknock").checked, logoWhite: $("f-logowhite").checked,
       logoX: logoPos ? logoPos.x : null, logoY: logoPos ? logoPos.y : null,
       logoSide: $("f-logoplace").value === "boxright" ? "right" : "left",
-      logoDX: logoDX, logoDY: logoDY, boxX: boxX, boxB: boxB
+      logoDX: logoDX, logoDY: logoDY, boxX: boxX, boxB: boxB,
+      nameDX: txt.name.dx, nameDY: txt.name.dy, nameScale: txt.name.scale,
+      roleDX: txt.role.dx, roleDY: txt.role.dy, roleScale: txt.role.scale
     };
   }
 
@@ -497,6 +519,20 @@ details.more .inline { margin-top: 2px; }
       var h = document.createElement("div"); h.className = "h h-" + c; h.setAttribute("data-corner", c); plt.appendChild(h);
     });
     plt.classList.toggle("selected", boxSelected);
+    var sel = pStage.querySelector(".sel");
+    if (!sel) {
+      sel = document.createElement("div"); sel.className = "sel";
+      ["nw", "ne", "sw", "se"].forEach(function (c) {
+        var h = document.createElement("div"); h.className = "h h-" + c; h.setAttribute("data-corner", c); sel.appendChild(h);
+      });
+      pStage.appendChild(sel);
+    }
+    var tEl = textSel && pStage.querySelector("." + textSel);
+    if (tEl && tEl.textContent) {
+      var tr = stageRect(tEl);
+      sel.style.display = "block";
+      sel.style.left = tr.x + "px"; sel.style.top = tr.y + "px"; sel.style.width = tr.w + "px"; sel.style.height = tr.h + "px";
+    } else sel.style.display = "none";
     if (animate) replay(pStage);
     $("logoOpts").hidden = !logoData;
     $("v-logow").textContent = o.logoW + " px"; $("v-logoh").textContent = o.logoH + " px";
@@ -507,7 +543,8 @@ details.more .inline { margin-top: 2px; }
       logoBg: o.logoBg, logoKnockout: o.logoKnockout, logoWhite: o.logoWhite,
       logoX: o.logoX, logoY: o.logoY, logoPlace: $("f-logoplace").value,
       customColors: customColors, plateColor: extraColors.plate, nameColor: extraColors.name, roleColor: extraColors.role,
-      logoDX: logoDX, logoDY: logoDY, boxX: boxX, boxB: boxB };
+      logoDX: logoDX, logoDY: logoDY, boxX: boxX, boxB: boxB,
+      nameDX: o.nameDX, nameDY: o.nameDY, nameScale: o.nameScale, roleDX: o.roleDX, roleDY: o.roleDY, roleScale: o.roleScale };
     // Pickers show the current colour, or the look's default when not changed.
     $("c-plate").value = extraColors.plate || (o.theme === "light" ? "#ffffff" : "#0c162e");
     $("c-name").value = extraColors.name || (o.theme === "light" ? "#0f1b33" : "#ffffff");
@@ -637,16 +674,20 @@ details.more .inline { margin-top: 2px; }
     document.addEventListener("pointercancel", up);
   }
   preview.addEventListener("pointerdown", function (e) {
+    var th = e.target.closest && e.target.closest(".sel .h");
+    if (th && textSel) { textPointerDown(e, textSel, th); return; }
     var lg = e.target.closest && e.target.closest(".logo");
     if (!lg || !logoData) {
+      var tx = e.target.closest && e.target.closest(".name, .role");
+      if (tx && tx.textContent) { textPointerDown(e, tx.classList.contains("name") ? "name" : "role", null); return; }
       var box = e.target.closest && e.target.closest(".lt");
       if (box) { boxPointerDown(e, box); return; }
-      if (logoSelected || boxSelected) { logoSelected = false; boxSelected = false; update(false); }
+      if (logoSelected || boxSelected || textSel) { logoSelected = false; boxSelected = false; textSel = null; update(false); }
       return;
     }
     e.preventDefault();
     pStage.classList.remove("animate");
-    if (!logoSelected || boxSelected) { logoSelected = true; boxSelected = false; update(false); }
+    if (!logoSelected || boxSelected || textSel) { logoSelected = true; boxSelected = false; textSel = null; update(false); }
     var k = pStage.getBoundingClientRect().width / 1920;
     var px = e.clientX, py = e.clientY;
     var lr = frameRect(lg);
@@ -712,7 +753,7 @@ details.more .inline { margin-top: 2px; }
   function boxPointerDown(e, box) {
     e.preventDefault();
     pStage.classList.remove("animate");
-    if (!boxSelected || logoSelected) { boxSelected = true; logoSelected = false; update(false); }
+    if (!boxSelected || logoSelected || textSel) { boxSelected = true; logoSelected = false; textSel = null; update(false); }
     var k = pStage.getBoundingClientRect().width / 1920, px = e.clientX, py = e.clientY;
     var x0 = boxX, b0 = boxB;
     var handle = e.target.closest(".h");
@@ -741,6 +782,45 @@ details.more .inline { margin-top: 2px; }
   }
   $("b-boxreset").onclick = function () { boxX = 130; boxB = 105; update(true); };
 
+  // Position of an element inside the stage, in frame pixels (ignores animation transforms).
+  function stageRect(el) {
+    var x = 0, y = 0, n = el;
+    while (n && n !== pStage) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+    return { x: x, y: y, w: el.offsetWidth, h: el.offsetHeight };
+  }
+
+  // ---- the name / role text: click to select, drag to move, drag a corner to resize ----
+  function textPointerDown(e, which, handle) {
+    e.preventDefault();
+    pStage.classList.remove("animate");
+    if (textSel !== which || logoSelected || boxSelected) { textSel = which; logoSelected = false; boxSelected = false; update(false); }
+    var k = pStage.getBoundingClientRect().width / 1920, px = e.clientX, py = e.clientY;
+    var t = txt[which], dx0 = t.dx, dy0 = t.dy, s0 = t.scale;
+    if (handle) {
+      var corner = handle.getAttribute("data-corner"), sx = corner.indexOf("e") >= 0 ? 1 : -1, sy = corner.indexOf("s") >= 0 ? 1 : -1;
+      var r0 = stageRect(pStage.querySelector("." + which));
+      trackPointer(function (ev) {
+        var ddx = (ev.clientX - px) / k, ddy = (ev.clientY - py) / k;
+        var f = Math.max((r0.w + sx * ddx) / r0.w, (r0.h + sy * ddy) / r0.h);
+        t.scale = Math.round(clamp(s0 * f, 0.4, 3) * 100) / 100;
+        var g = t.scale / s0;
+        // Keep the opposite corner roughly where it was.
+        t.dx = sx < 0 ? Math.round(dx0 + r0.w * (1 - g)) : dx0;
+        t.dy = sy < 0 ? Math.round(dy0 + r0.h * (1 - g)) : dy0;
+        update(false);
+      });
+      return;
+    }
+    trackPointer(function (ev) {
+      t.dx = Math.round(clamp(dx0 + (ev.clientX - px) / k, -150, 1400));
+      t.dy = Math.round(clamp(dy0 + (ev.clientY - py) / k, -150, 400));
+      update(false);
+    });
+  }
+  $("b-textreset").onclick = function () {
+    txt.name = { dx: 0, dy: 0, scale: 1 }; txt.role = { dx: 0, dy: 0, scale: 1 }; update(true);
+  };
+
   $("b-logoclear").onclick = function () {
     logoOriginal = ""; $("f-logo").value = "";
     try { localStorage.removeItem("lt-logo"); } catch (e) {}
@@ -760,6 +840,8 @@ details.more .inline { margin-top: 2px; }
     if (o.boxW > 0) q.set("boxw", o.boxW);
     if (o.boxX !== 130) q.set("boxx", o.boxX);
     if (o.boxB !== 105) q.set("boxb", o.boxB);
+    [["ndx", o.nameDX, 0], ["ndy", o.nameDY, 0], ["ns", o.nameScale, 1], ["rdx", o.roleDX, 0], ["rdy", o.roleDY, 0], ["rs", o.roleScale, 1]]
+      .forEach(function (v) { if (v[1] !== v[2]) q.set(v[0], v[1]); });
     if (o.plateColor) q.set("platecolor", o.plateColor.replace("#", ""));
     if (o.nameColor) q.set("namecolor", o.nameColor.replace("#", ""));
     if (o.roleColor) q.set("rolecolor", o.roleColor.replace("#", ""));
@@ -837,7 +919,7 @@ details.more .inline { margin-top: 2px; }
       if (p.length === 2) return { line: idx, section: "", role: p[0], name: p[1] };
       return { line: idx, section: p[0], role: p[1], name: p.slice(2).join(" | ") };
     }).filter(Boolean).map(function (it) {
-      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "logoSide", "logoDX", "logoDY", "boxW", "boxH", "boxX", "boxB", "plateColor", "nameColor", "roleColor"].forEach(function (k) { it[k] = base[k]; });
+      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "logoSide", "logoDX", "logoDY", "boxW", "boxH", "boxX", "boxB", "nameDX", "nameDY", "nameScale", "roleDX", "roleDY", "roleScale", "plateColor", "nameColor", "roleColor"].forEach(function (k) { it[k] = base[k]; });
       return it;
     });
   }
