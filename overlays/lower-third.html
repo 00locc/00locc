@@ -231,7 +231,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var plate = stage.querySelector(".plate"), row = stage.querySelector(".row"), pill = stage.querySelector(".pill");
     var size = lw, minimal = stage.classList.contains("t-minimal");
     var barW = minimal ? 6 : 12, padL = minimal ? 26 : 30;
-    plate.style.paddingLeft = ""; pill.style.marginLeft = "";
+    plate.style.paddingLeft = ""; plate.style.paddingRight = ""; pill.style.marginLeft = ""; logo.style.right = "";
     plate.style.minWidth = +o.boxW > 0 ? o.boxW + "px" : "";
     plate.style.minHeight = +o.boxH > 0 ? o.boxH + "px" : "";
     if (typeof o.logoX === "number" && typeof o.logoY === "number") {
@@ -241,10 +241,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     } else {
       if (logo.parentNode !== row) row.appendChild(logo);
       logo.classList.remove("free");
-      logo.style.left = (barW + padL) + "px"; logo.style.top = "";
-      if (o.logoSrc) {
-        plate.style.paddingLeft = (padL + size + 26) + "px";
-        pill.style.marginLeft = (barW + padL + size + 26) + "px";
+      logo.style.top = "";
+      if (o.logoSide === "right") {
+        // Logo on the right of the box; the name stays on the left.
+        var padR = minimal ? 10 : 30;
+        logo.style.left = ""; logo.style.right = padR + "px";
+        if (o.logoSrc) plate.style.paddingRight = (padR + size + 26) + "px";
+      } else {
+        logo.style.left = (barW + padL) + "px";
+        if (o.logoSrc) {
+          plate.style.paddingLeft = (padL + size + 26) + "px";
+          pill.style.marginLeft = (barW + padL + size + 26) + "px";
+        }
       }
     }
     fitText(stage);
@@ -297,6 +305,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       logoW: +(params.get("logow") || params.get("logosize") || 92),
       logoH: +(params.get("logoh") || params.get("logosize") || 92),
       logoStretch: params.get("logostretch") === "1",
+      logoSide: params.get("logoside") === "right" ? "right" : "left",
       boxW: +(params.get("boxw") || 0),
       boxH: +(params.get("boxh") || 0),
       logoBg: params.get("logobg") || "circle",
@@ -323,7 +332,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   var app = document.getElementById("app");
   app.innerHTML =
     '<div class="maker">' +
-      '<h1>Lower Third Maker <span class="ver">Version 5</span></h1>' +
+      '<h1>Lower Third Maker <span class="ver">Version 6</span></h1>' +
       '<p class="sub">Type a name and role, pick a look, then <b>Copy Wirecast link</b> (for an animated Web Page shot) or <b>Download PNG</b> (a still image you can drag into Wirecast).</p>' +
       '<div class="grid">' +
         '<div class="card">' +
@@ -348,9 +357,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             '<label class="check"><input type="checkbox" id="f-logoknock"> Remove white background from the logo image</label>' +
             '<label class="check"><input type="checkbox" id="f-logowhite"> Make the logo all white</label>' +
             '<label for="f-logoplace">Logo position</label>' +
-            '<select id="f-logoplace"><option value="box">In the name box</option><option value="tr">Top right corner</option>' +
+            '<select id="f-logoplace"><option value="box">Left side of the name box</option><option value="boxright">Right side of the name box</option>' +
+            '<option value="tr">Top right corner</option>' +
             '<option value="tl">Top left corner</option><option value="custom">Where I dragged it</option></select>' +
-            '<div class="hint">You can also drag the logo in the preview to put it anywhere.</div>' +
+            '<div class="hint">Or drag the logo in the preview: drop it on the left or right half of the name box and the name moves aside, or drop it anywhere else on the screen.</div>' +
             '<div class="btns"><button class="btn sm" type="button" id="b-logoclear">Remove logo</button></div>' +
           '</div>' +
           '<div class="hint">The maker remembers your logo. For the Wirecast link, also save it as <b>logo.png</b> in the same folder as this file.</div>' +
@@ -392,7 +402,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   $("f-boxw").value = state.boxW; $("f-boxh").value = state.boxH;
   $("f-logobg").value = state.logoBg;
   $("f-logoknock").checked = !!state.logoKnockout; $("f-logowhite").checked = !!state.logoWhite;
-  $("f-logoplace").value = logoPos ? (state.logoPlace && state.logoPlace !== "box" ? state.logoPlace : "custom") : "box";
+  $("f-logoplace").value = logoPos
+    ? (["tr", "tl", "custom"].indexOf(state.logoPlace) >= 0 ? state.logoPlace : "custom")
+    : (state.logoPlace === "boxright" ? "boxright" : "box");
 
   var preview = $("preview");
   var pStage = makeStage();
@@ -406,7 +418,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       logoStretch: !$("f-logokeep").checked, boxW: +$("f-boxw").value, boxH: +$("f-boxh").value,
       logoBg: $("f-logobg").value,
       logoKnockout: $("f-logoknock").checked, logoWhite: $("f-logowhite").checked,
-      logoX: logoPos ? logoPos.x : null, logoY: logoPos ? logoPos.y : null
+      logoX: logoPos ? logoPos.x : null, logoY: logoPos ? logoPos.y : null,
+      logoSide: $("f-logoplace").value === "boxright" ? "right" : "left"
     };
   }
 
@@ -490,7 +503,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var size = +$("f-logow").value, place = $("f-logoplace").value;
     if (place === "tr") logoPos = { x: 1920 - size - 80, y: 60 };
     else if (place === "tl") logoPos = { x: 80, y: 60 };
-    else if (place === "box") logoPos = null;
+    else if (place === "box" || place === "boxright") logoPos = null;
     else if (!logoPos) logoPos = { x: 1920 - size - 80, y: 60 };
   }
   $("f-logoplace").addEventListener("change", function () { placeLogo(); update(true); });
@@ -521,11 +534,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
     function move(ev) {
       var lw = +$("f-logow").value, lh = +$("f-logoh").value;
-      logoPos = {
-        x: clamp(Math.round(startX + (ev.clientX - px) / k), 0, 1920 - lw),
-        y: clamp(Math.round(startY + (ev.clientY - py) / k), 0, 1080 - lh)
-      };
-      $("f-logoplace").value = "custom";
+      var place = $("f-logoplace");
+      // Over the name box: snap into its left or right side and let the name move aside.
+      var rr = pStage.querySelector(".row").getBoundingClientRect(), m = 20 * k;
+      var cx = ev.clientX, cy = ev.clientY;
+      if (cx >= rr.left - m && cx <= rr.right + m && cy >= rr.top - m && cy <= rr.bottom + m) {
+        var f = (cx - rr.left) / rr.width;
+        var side = place.value === "boxright" ? (f < 0.4 ? "box" : "boxright")
+                 : place.value === "box" ? (f > 0.6 ? "boxright" : "box")
+                 : (f < 0.5 ? "box" : "boxright");
+        logoPos = null; place.value = side;
+      } else {
+        logoPos = {
+          x: clamp(Math.round(startX + (ev.clientX - px) / k), 0, 1920 - lw),
+          y: clamp(Math.round(startY + (ev.clientY - py) / k), 0, 1080 - lh)
+        };
+        place.value = "custom";
+      }
       update(false);
     }
     function up() {
@@ -562,6 +587,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (o.logoBg === "none") q.set("logobg", "none");
       if (o.logoWhite) q.set("logocolor", "white");
       if (typeof o.logoX === "number") { q.set("logox", o.logoX); q.set("logoy", o.logoY); }
+      else if (o.logoSide === "right") q.set("logoside", "right");
     }
     return base + "?" + q.toString();
   }
@@ -623,7 +649,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (p.length === 2) return { section: "", role: p[0], name: p[1] };
       return { section: p[0], role: p[1], name: p.slice(2).join(" | ") };
     }).filter(Boolean).map(function (it) {
-      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "boxW", "boxH"].forEach(function (k) { it[k] = base[k]; });
+      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "logoSide", "boxW", "boxH"].forEach(function (k) { it[k] = base[k]; });
       return it;
     });
   }
