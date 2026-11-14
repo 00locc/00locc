@@ -74,13 +74,15 @@ body.overlay-mode { background: transparent; overflow: hidden; }
 .logo.free { position: absolute; z-index: 2; }
 .preview .logo.on { cursor: grab; touch-action: none; }
 .preview .logo.selected { outline: calc(2px * var(--inv, 1)) dashed #3b82f6; outline-offset: calc(4px * var(--inv, 1)); }
-.logo .h { display: none; position: absolute; z-index: 3; width: calc(14px * var(--inv, 1)); height: calc(14px * var(--inv, 1));
+.h { display: none; position: absolute; z-index: 3; width: calc(14px * var(--inv, 1)); height: calc(14px * var(--inv, 1));
   background: #fff; border: calc(2px * var(--inv, 1)) solid #3b82f6; border-radius: calc(3px * var(--inv, 1)); }
-.preview .logo.selected .h { display: block; }
-.logo .h-nw { left: calc(-11px * var(--inv, 1)); top: calc(-11px * var(--inv, 1)); cursor: nwse-resize; }
-.logo .h-ne { right: calc(-11px * var(--inv, 1)); top: calc(-11px * var(--inv, 1)); cursor: nesw-resize; }
-.logo .h-sw { left: calc(-11px * var(--inv, 1)); bottom: calc(-11px * var(--inv, 1)); cursor: nesw-resize; }
-.logo .h-se { right: calc(-11px * var(--inv, 1)); bottom: calc(-11px * var(--inv, 1)); cursor: nwse-resize; }
+.preview .logo.selected > .h, .preview .lt.selected > .h { display: block; }
+.preview .lt { cursor: move; touch-action: none; }
+.preview .lt.selected { outline: calc(2px * var(--inv, 1)) dashed #3b82f6; outline-offset: calc(8px * var(--inv, 1)); }
+.h-nw { left: calc(-11px * var(--inv, 1)); top: calc(-11px * var(--inv, 1)); cursor: nwse-resize; }
+.h-ne { right: calc(-11px * var(--inv, 1)); top: calc(-11px * var(--inv, 1)); cursor: nesw-resize; }
+.h-sw { left: calc(-11px * var(--inv, 1)); bottom: calc(-11px * var(--inv, 1)); cursor: nesw-resize; }
+.h-se { right: calc(-11px * var(--inv, 1)); bottom: calc(-11px * var(--inv, 1)); cursor: nwse-resize; }
 .preview .logo.on:active { cursor: grabbing; }
 .text { display: flex; flex-direction: column; min-width: 0; }
 .name { font-weight: 700; font-size: 62px; line-height: 1.08; color: var(--name); white-space: nowrap; }
@@ -261,6 +263,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     plate.style.paddingLeft = ""; plate.style.paddingRight = ""; logo.style.right = "";
     plate.style.minWidth = +o.boxW > 0 ? o.boxW + "px" : "";
     plate.style.minHeight = +o.boxH > 0 ? o.boxH + "px" : "";
+    var lt = stage.querySelector(".lt");
+    lt.style.left = (typeof o.boxX === "number" ? o.boxX : 130) + "px";
+    lt.style.bottom = (typeof o.boxB === "number" ? o.boxB : 105) + "px";
     if (typeof o.logoX === "number" && typeof o.logoY === "number") {
       if (logo.parentNode !== stage) stage.appendChild(logo);
       logo.classList.add("free");
@@ -341,6 +346,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       logoDY: +(params.get("logody") || 0),
       boxW: +(params.get("boxw") || 0),
       boxH: +(params.get("boxh") || 0),
+      boxX: params.has("boxx") ? +params.get("boxx") : 130,
+      boxB: params.has("boxb") ? +params.get("boxb") : 105,
       logoBg: params.get("logobg") || "circle",
       logoWhite: params.get("logocolor") === "white",
       logoX: params.has("logox") ? +params.get("logox") : null,
@@ -361,12 +368,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   var logoOriginal = "", logoData = "";
   var logoPos = (typeof state.logoX === "number" && typeof state.logoY === "number") ? { x: state.logoX, y: state.logoY } : null;
   var logoDX = +state.logoDX || 0, logoDY = +state.logoDY || 0, logoSelected = false;
+  var boxX = typeof state.boxX === "number" ? state.boxX : 130, boxB = typeof state.boxB === "number" ? state.boxB : 105, boxSelected = false;
   try { logoOriginal = localStorage.getItem("lt-logo") || ""; } catch (e) {}
 
   var app = document.getElementById("app");
   app.innerHTML =
     '<div class="maker">' +
-      '<h1>Lower Third Maker <span class="ver">Version 10</span></h1>' +
+      '<h1>Lower Third Maker <span class="ver">Version 11</span></h1>' +
       '<p class="sub">Type a name and role, pick a look, then <b>Copy Wirecast link</b> (for an animated Web Page shot) or <b>Download PNG</b> (a still image you can drag into Wirecast).</p>' +
       '<div class="grid">' +
         '<div class="card">' +
@@ -388,7 +396,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           '</details>' +
           '<label for="f-boxw">Box width<span class="val" id="v-boxw"></span></label><input type="range" id="f-boxw" min="0" max="1600" step="10">' +
           '<label for="f-boxh">Box height<span class="val" id="v-boxh"></span></label><input type="range" id="f-boxh" min="0" max="400" step="4">' +
-          '<div class="hint">All the way left = the box fits the text by itself.</div>' +
+          '<div class="hint">All the way left = the box fits the text by itself. You can also click the box in the preview to move it or drag its corners to resize it.</div>' +
+          '<div class="btns"><button class="btn sm" type="button" id="b-boxreset">Put the box back in its usual spot</button></div>' +
           '<label for="f-logo">Logo (optional, PNG)</label>' +
           '<input type="file" id="f-logo" accept="image/png,image/jpeg,image/svg+xml">' +
           '<div id="logoOpts" hidden>' +
@@ -488,7 +497,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       logoKnockout: $("f-logoknock").checked, logoWhite: $("f-logowhite").checked,
       logoX: logoPos ? logoPos.x : null, logoY: logoPos ? logoPos.y : null,
       logoSide: $("f-logoplace").value === "boxright" ? "right" : "left",
-      logoDX: logoDX, logoDY: logoDY
+      logoDX: logoDX, logoDY: logoDY, boxX: boxX, boxB: boxB
     };
   }
 
@@ -502,6 +511,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var h = document.createElement("div"); h.className = "h h-" + c; h.setAttribute("data-corner", c); plg.appendChild(h);
     });
     plg.classList.toggle("selected", logoSelected && !!logoData);
+    var plt = pStage.querySelector(".lt");
+    if (!plt.querySelector(":scope > .h")) ["nw", "ne", "sw", "se"].forEach(function (c) {
+      var h = document.createElement("div"); h.className = "h h-" + c; h.setAttribute("data-corner", c); plt.appendChild(h);
+    });
+    plt.classList.toggle("selected", boxSelected);
     if (animate) replay(pStage);
     $("logoOpts").hidden = !logoData;
     $("v-logow").textContent = o.logoW + " px"; $("v-logoh").textContent = o.logoH + " px";
@@ -512,7 +526,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       logoBg: o.logoBg, logoKnockout: o.logoKnockout, logoWhite: o.logoWhite,
       logoX: o.logoX, logoY: o.logoY, logoPlace: $("f-logoplace").value,
       customColors: customColors, plateColor: extraColors.plate, nameColor: extraColors.name, roleColor: extraColors.role,
-      logoDX: logoDX, logoDY: logoDY };
+      logoDX: logoDX, logoDY: logoDY, boxX: boxX, boxB: boxB };
     // Pickers show the current colour, or the look's default when not changed.
     $("c-plate").value = extraColors.plate || (o.theme === "light" ? "#ffffff" : "#0c162e");
     $("c-name").value = extraColors.name || (o.theme === "light" ? "#0f1b33" : "#ffffff");
@@ -643,10 +657,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
   preview.addEventListener("pointerdown", function (e) {
     var lg = e.target.closest && e.target.closest(".logo");
-    if (!lg || !logoData) { if (logoSelected) { logoSelected = false; update(false); } return; }
+    if (!lg || !logoData) {
+      var box = e.target.closest && e.target.closest(".lt");
+      if (box) { boxPointerDown(e, box); return; }
+      if (logoSelected || boxSelected) { logoSelected = false; boxSelected = false; update(false); }
+      return;
+    }
     e.preventDefault();
     pStage.classList.remove("animate");
-    if (!logoSelected) { logoSelected = true; update(false); }
+    if (!logoSelected || boxSelected) { logoSelected = true; boxSelected = false; update(false); }
     var k = pStage.getBoundingClientRect().width / 1920;
     var px = e.clientX, py = e.clientY;
     var lr = frameRect(lg);
@@ -685,8 +704,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var minimal = pStage.classList.contains("t-minimal"), barW = minimal ? 6 : 12, padL = minimal ? 26 : 30;
     var plate = frameRect(pStage.querySelector(".plate")), textW = pStage.querySelector(".text").offsetWidth;
     var rowR = frameRect(pStage.querySelector(".row"));
-    var core = { x: 130, y: plate.y, w: Math.max(barW + padL + textW + (minimal ? 10 : 46), rowR.w), h: plate.h };
-    var textStart = 130 + barW + padL, textEnd = textStart + textW, mid = plate.y + plate.h / 2;
+    var core = { x: rowR.x, y: plate.y, w: Math.max(barW + padL + textW + (minimal ? 10 : 46), rowR.w), h: plate.h };
+    var textStart = rowR.x + barW + padL, textEnd = textStart + textW, mid = plate.y + plate.h / 2;
     trackPointer(function (ev) {
       var x = lr.x + (ev.clientX - px) / k, y = lr.y + (ev.clientY - py) / k;
       var cx = x + lr.w / 2, cy = y + lr.h / 2, m = 40;
@@ -708,6 +727,39 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       update(false);
     });
   });
+  // ---- the name box: click to select, drag to move, drag a corner to resize ----
+  function boxPointerDown(e, box) {
+    e.preventDefault();
+    pStage.classList.remove("animate");
+    if (!boxSelected || logoSelected) { boxSelected = true; logoSelected = false; update(false); }
+    var k = pStage.getBoundingClientRect().width / 1920, px = e.clientX, py = e.clientY;
+    var x0 = boxX, b0 = boxB;
+    var handle = e.target.closest(".h");
+    if (handle && handle.parentNode === box) {
+      var corner = handle.getAttribute("data-corner");
+      var plateEl = pStage.querySelector(".plate");
+      var w0 = plateEl.offsetWidth, h0 = plateEl.offsetHeight;
+      trackPointer(function (ev) {
+        var ddx = (ev.clientX - px) / k, ddy = (ev.clientY - py) / k;
+        var w = corner.indexOf("e") >= 0 ? w0 + ddx : w0 - ddx;
+        var h = corner.indexOf("s") >= 0 ? h0 + ddy : h0 - ddy;
+        w = Math.round(clamp(w, 100, 1700)); h = Math.round(clamp(h, 40, 400));
+        $("f-boxw").value = w; $("f-boxh").value = h;
+        // Keep the opposite side where it was.
+        if (corner.indexOf("w") >= 0) boxX = Math.round(x0 + (w0 - w));
+        if (corner.indexOf("s") >= 0) boxB = Math.round(clamp(b0 - (h - h0), 0, 1000));
+        update(false);
+      });
+      return;
+    }
+    trackPointer(function (ev) {
+      boxX = Math.round(clamp(x0 + (ev.clientX - px) / k, -100, 1800));
+      boxB = Math.round(clamp(b0 - (ev.clientY - py) / k, 0, 1000));
+      update(false);
+    });
+  }
+  $("b-boxreset").onclick = function () { boxX = 130; boxB = 105; update(true); };
+
   $("b-logoclear").onclick = function () {
     logoOriginal = ""; $("f-logo").value = "";
     try { localStorage.removeItem("lt-logo"); } catch (e) {}
@@ -725,6 +777,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     q.set("theme", o.theme);
     q.set("accent", o.accent.replace("#", ""));
     if (o.boxW > 0) q.set("boxw", o.boxW);
+    if (o.boxX !== 130) q.set("boxx", o.boxX);
+    if (o.boxB !== 105) q.set("boxb", o.boxB);
     if (o.plateColor) q.set("platecolor", o.plateColor.replace("#", ""));
     if (o.nameColor) q.set("namecolor", o.nameColor.replace("#", ""));
     if (o.roleColor) q.set("rolecolor", o.roleColor.replace("#", ""));
@@ -802,7 +856,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (p.length === 2) return { line: idx, section: "", role: p[0], name: p[1] };
       return { line: idx, section: p[0], role: p[1], name: p.slice(2).join(" | ") };
     }).filter(Boolean).map(function (it) {
-      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "logoSide", "logoDX", "logoDY", "boxW", "boxH", "plateColor", "nameColor", "roleColor"].forEach(function (k) { it[k] = base[k]; });
+      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "logoSide", "logoDX", "logoDY", "boxW", "boxH", "boxX", "boxB", "plateColor", "nameColor", "roleColor"].forEach(function (k) { it[k] = base[k]; });
       return it;
     });
   }
