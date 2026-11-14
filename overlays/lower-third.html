@@ -136,6 +136,9 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
 .hint { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
+.addbox { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 14px; }
+.addbox h3 { font-size: 15px; margin: 0 0 4px; }
+.item .x { color: var(--muted); }
 .list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .item { display: flex; gap: 10px; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .item .meta { min-width: 0; font-size: 13px; }
@@ -264,8 +267,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var max = 1380;
     [[name, 62, 38], [role, 27, 18]].forEach(function (t) {
       var el = t[0], size = t[1];
-      el.style.fontSize = size + "px";
+      el.style.fontSize = size + "px"; el.style.whiteSpace = ""; el.style.maxWidth = "";
       while (el.scrollWidth > max && size > t[2]) { size -= 2; el.style.fontSize = size + "px"; }
+      if (el.scrollWidth > max) { el.style.whiteSpace = "normal"; el.style.maxWidth = max + "px"; }
     });
   }
 
@@ -332,7 +336,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   var app = document.getElementById("app");
   app.innerHTML =
     '<div class="maker">' +
-      '<h1>Lower Third Maker <span class="ver">Version 6</span></h1>' +
+      '<h1>Lower Third Maker <span class="ver">Version 7</span></h1>' +
       '<p class="sub">Type a name and role, pick a look, then <b>Copy Wirecast link</b> (for an animated Web Page shot) or <b>Download PNG</b> (a still image you can drag into Wirecast).</p>' +
       '<div class="grid">' +
         '<div class="card">' +
@@ -379,6 +383,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             '<textarea id="f-program" spellcheck="false"></textarea>' +
             '<div class="btns"><button class="btn primary" id="b-zip">Download all PNGs (ZIP)</button></div>' +
             '<div class="list" id="list"></div>' +
+            '<div class="addbox">' +
+              '<h3>Add an overlay</h3>' +
+              '<div class="hint" style="margin:0">For anything else: a welcome message, a hymn number, an announcement…</div>' +
+              '<label for="a-tag">Small tag on top (optional)</label><input type="text" id="a-tag" placeholder="e.g. Announcement">' +
+              '<label for="a-main">Main text</label><input type="text" id="a-main" placeholder="e.g. Welcome to our livestream">' +
+              '<label for="a-sub">Line underneath (optional)</label><input type="text" id="a-sub" placeholder="e.g. Hymn 123">' +
+              '<div class="btns"><button class="btn primary" type="button" id="b-add">+ Add overlay</button></div>' +
+            '</div>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -642,12 +654,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // ---------- Program list ----------
   function programItems() {
     var base = current();
-    return $("f-program").value.split("\n").map(function (line) {
+    return $("f-program").value.split("\n").map(function (line, idx) {
       var p = line.split("|").map(function (s) { return s.trim(); });
       if (!line.trim()) return null;
-      if (p.length === 1) return { section: "", role: "", name: p[0] };
-      if (p.length === 2) return { section: "", role: p[0], name: p[1] };
-      return { section: p[0], role: p[1], name: p.slice(2).join(" | ") };
+      if (p.length === 1) return { line: idx, section: "", role: "", name: p[0] };
+      if (p.length === 2) return { line: idx, section: "", role: p[0], name: p[1] };
+      return { line: idx, section: p[0], role: p[1], name: p.slice(2).join(" | ") };
     }).filter(Boolean).map(function (it) {
       ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "logoSide", "boxW", "boxH"].forEach(function (k) { it[k] = base[k]; });
       return it;
@@ -673,10 +685,30 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         $("f-section").value = it.section; $("f-role").value = it.role; $("f-name").value = it.name;
         update(true); preview.scrollIntoView({ behavior: "smooth", block: "center" });
       };
-      acts.appendChild(bv); acts.appendChild(bl); acts.appendChild(bp);
+      var bx = document.createElement("button"); bx.className = "btn sm x"; bx.textContent = "✕";
+      bx.title = "Remove from the list"; bx.setAttribute("aria-label", "Remove " + (it.name || "item"));
+      bx.onclick = function () {
+        var lines = $("f-program").value.split("\n");
+        lines.splice(it.line, 1);
+        $("f-program").value = lines.join("\n");
+        update(false);
+      };
+      acts.appendChild(bv); acts.appendChild(bl); acts.appendChild(bp); acts.appendChild(bx);
       row.appendChild(meta); row.appendChild(acts); list.appendChild(row);
     });
   }
+
+  $("b-add").onclick = function () {
+    var clean = function (id) { return $(id).value.replace(/\|/g, "/").trim(); };
+    var tag = clean("a-tag"), main = clean("a-main"), sub = clean("a-sub");
+    if (!main) { toast("Type the main text first."); $("a-main").focus(); return; }
+    var text = $("f-program").value.replace(/\s+$/, "");
+    $("f-program").value = (text ? text + "\n" : "") + tag + " | " + sub + " | " + main;
+    ["a-tag", "a-main", "a-sub"].forEach(function (id) { $(id).value = ""; });
+    update(false);
+    toast("Added: " + main);
+    var rows = $("list").children; if (rows.length) rows[rows.length - 1].scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
 
   $("b-zip").onclick = function () {
     var items = programItems();
