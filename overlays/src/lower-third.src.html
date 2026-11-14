@@ -120,7 +120,12 @@ textarea { min-height: 170px; font-size: 13px; line-height: 1.5; resize: vertica
 .inline { display: flex; gap: 10px; align-items: center; }
 input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: var(--page); }
 .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
-.swatches button { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--panel); outline: 1px solid var(--line); cursor: pointer; }
+.swatches button { position: relative; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--panel); outline: 1px solid var(--line); cursor: pointer; padding: 0; }
+.swatches .rm { position: absolute; top: -7px; right: -7px; width: 16px; height: 16px; border-radius: 50%; background: #111827; color: #fff; font-size: 10px; line-height: 16px; text-align: center; display: none; }
+.swatches button.custom:hover .rm, .swatches button.custom:focus-visible .rm { display: block; }
+details.more { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+details.more summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+details.more .inline { margin-top: 2px; }
 .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .btn { font: inherit; font-size: 14px; font-weight: 600; border-radius: 8px; padding: 9px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
 .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
@@ -197,9 +202,20 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
   function fillStage(stage, o) {
     stage.className = "stage t-" + (THEMES[o.theme] ? o.theme : "royal");
     stage.style.setProperty("--accent", o.accent || DEFAULTS.accent);
+    // Tag text: dark on light accents, white on dark ones.
+    var am = /^#?([0-9a-f]{6})$/i.exec(o.accent || DEFAULTS.accent), lum = 1;
+    if (am) { var an = parseInt(am[1], 16); lum = (0.299 * (an >> 16) + 0.587 * ((an >> 8) & 255) + 0.114 * (an & 255)) / 255; }
+    stage.style.setProperty("--pill-ink", lum < 0.55 ? "#ffffff" : "#111827");
     stage.querySelector(".pill").textContent = o.section || "";
     stage.querySelector(".name").textContent = o.name || "";
     stage.querySelector(".role").textContent = o.role || "";
+    var hexA = function (hex, a) {
+      var m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return "";
+      var n = parseInt(m[1], 16); return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+    };
+    stage.querySelector(".plate").style.background = (o.plateColor && o.theme !== "minimal") ? hexA(o.plateColor, o.theme === "light" ? 0.96 : 0.93) : "";
+    stage.querySelector(".name").style.color = o.nameColor || "";
+    stage.querySelector(".role").style.color = o.roleColor || "";
     var logo = stage.querySelector(".logo");
     logo.classList.toggle("on", !!o.logoSrc);
     logo.classList.toggle("bare", o.logoBg === "none");
@@ -286,6 +302,9 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
       name: params.get("name") || "",
       theme: params.get("theme") || "royal",
       accent: params.get("accent") ? "#" + params.get("accent").replace(/^#/, "") : DEFAULTS.accent,
+      plateColor: params.get("platecolor") ? "#" + params.get("platecolor") : "",
+      nameColor: params.get("namecolor") ? "#" + params.get("namecolor") : "",
+      roleColor: params.get("rolecolor") ? "#" + params.get("rolecolor") : "",
       logoSrc: logoParam ? (logoParam === "1" ? "logo.png" : logoParam) : "",
       logoW: +(params.get("logow") || params.get("logosize") || 92),
       logoH: +(params.get("logoh") || params.get("logosize") || 92),
@@ -317,7 +336,7 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
   var app = document.getElementById("app");
   app.innerHTML =
     '<div class="maker">' +
-      '<h1>Lower Third Maker <span class="ver">Version 7</span></h1>' +
+      '<h1>Lower Third Maker <span class="ver">Version 8</span></h1>' +
       '<p class="sub">Type a name and role, pick a look, then <b>Copy Wirecast link</b> (for an animated Web Page shot) or <b>Download PNG</b> (a still image you can drag into Wirecast).</p>' +
       '<div class="grid">' +
         '<div class="card">' +
@@ -328,6 +347,13 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
           '<label for="f-theme">Look</label><select id="f-theme"></select>' +
           '<label>Accent colour</label>' +
           '<div class="inline"><input type="color" id="f-accent"><div class="swatches" id="swatches"></div></div>' +
+          '<div class="btns" style="margin-top:8px"><button class="btn sm" type="button" id="b-addcolor">+ Save this colour</button></div>' +
+          '<div class="hint">Pick any colour with the square, then save it to the row. Hover a saved colour and click × to remove it.</div>' +
+          '<details class="more"><summary>More colours</summary>' +
+            '<label for="c-plate">Box colour</label><div class="inline"><input type="color" id="c-plate"><button class="btn sm" type="button" data-reset="plate">Reset</button></div>' +
+            '<label for="c-name">Name colour</label><div class="inline"><input type="color" id="c-name"><button class="btn sm" type="button" data-reset="name">Reset</button></div>' +
+            '<label for="c-role">Role colour</label><div class="inline"><input type="color" id="c-role"><button class="btn sm" type="button" data-reset="role">Reset</button></div>' +
+          '</details>' +
           '<label for="f-boxw">Box width<span class="val" id="v-boxw"></span></label><input type="range" id="f-boxw" min="0" max="1600" step="10">' +
           '<label for="f-boxh">Box height<span class="val" id="v-boxh"></span></label><input type="range" id="f-boxh" min="0" max="400" step="4">' +
           '<div class="hint">All the way left = the box fits the text by itself.</div>' +
@@ -382,12 +408,28 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
   Object.keys(THEMES).forEach(function (k) {
     var o = document.createElement("option"); o.value = k; o.textContent = THEMES[k]; themeSel.appendChild(o);
   });
-  ACCENTS.forEach(function (c) {
-    var b = document.createElement("button");
-    b.type = "button"; b.style.background = c; b.title = c; b.setAttribute("aria-label", "Accent " + c);
-    b.onclick = function () { $("f-accent").value = c; update(); };
-    $("swatches").appendChild(b);
-  });
+  var customColors = Array.isArray(state.customColors) ? state.customColors.slice() : [];
+  var extraColors = { plate: state.plateColor || "", name: state.nameColor || "", role: state.roleColor || "" };
+  function renderSwatches() {
+    var box = $("swatches"); box.innerHTML = "";
+    ACCENTS.concat(customColors).forEach(function (c, i) {
+      var b = document.createElement("button");
+      b.type = "button"; b.style.background = c; b.title = c; b.setAttribute("aria-label", "Accent " + c);
+      b.onclick = function () { $("f-accent").value = c; update(); };
+      if (i >= ACCENTS.length) {
+        b.className = "custom";
+        var rm = document.createElement("span"); rm.className = "rm"; rm.textContent = "×"; rm.title = "Remove this colour";
+        rm.onclick = function (e) {
+          e.stopPropagation();
+          customColors.splice(customColors.indexOf(c), 1);
+          renderSwatches(); update(false);
+        };
+        b.appendChild(rm);
+      }
+      box.appendChild(b);
+    });
+  }
+  renderSwatches();
 
   $("f-section").value = state.section; $("f-role").value = state.role; $("f-name").value = state.name;
   themeSel.value = state.theme; $("f-accent").value = state.accent; $("f-program").value = state.program || SAMPLE_PROGRAM;
@@ -407,6 +449,7 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
     return {
       section: $("f-section").value.trim(), role: $("f-role").value.trim(), name: $("f-name").value.trim(),
       theme: themeSel.value, accent: $("f-accent").value, logoSrc: logoData,
+      plateColor: extraColors.plate, nameColor: extraColors.name, roleColor: extraColors.role,
       logoW: +$("f-logow").value, logoH: +$("f-logoh").value, logoKeep: $("f-logokeep").checked,
       logoStretch: !$("f-logokeep").checked, boxW: +$("f-boxw").value, boxH: +$("f-boxh").value,
       logoBg: $("f-logobg").value,
@@ -428,12 +471,28 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
     state = { section: o.section, role: o.role, name: o.name, theme: o.theme, accent: o.accent, program: $("f-program").value,
       logoW: o.logoW, logoH: o.logoH, logoKeep: o.logoKeep, boxW: o.boxW, boxH: o.boxH,
       logoBg: o.logoBg, logoKnockout: o.logoKnockout, logoWhite: o.logoWhite,
-      logoX: o.logoX, logoY: o.logoY, logoPlace: $("f-logoplace").value };
+      logoX: o.logoX, logoY: o.logoY, logoPlace: $("f-logoplace").value,
+      customColors: customColors, plateColor: extraColors.plate, nameColor: extraColors.name, roleColor: extraColors.role };
+    // Pickers show the current colour, or the look's default when not changed.
+    $("c-plate").value = extraColors.plate || (o.theme === "light" ? "#ffffff" : "#0c162e");
+    $("c-name").value = extraColors.name || (o.theme === "light" ? "#0f1b33" : "#ffffff");
+    $("c-role").value = extraColors.role || (o.theme === "light" ? "#8a6510" : o.theme === "minimal" ? "#f1f1f1" : o.accent);
     save(state);
     renderList();
   }
 
   ["f-section", "f-role", "f-name", "f-accent"].forEach(function (id) { $(id).addEventListener("input", function () { update(false); }); });
+  $("b-addcolor").onclick = function () {
+    var c = $("f-accent").value.toLowerCase();
+    if (ACCENTS.indexOf(c) >= 0 || customColors.indexOf(c) >= 0) { toast("That colour is already in the row."); return; }
+    customColors.push(c); renderSwatches(); update(false); toast("Colour saved.");
+  };
+  ["plate", "name", "role"].forEach(function (k) {
+    $("c-" + k).addEventListener("input", function () { extraColors[k] = $("c-" + k).value; update(false); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-reset]"), function (b) {
+    b.onclick = function () { extraColors[b.getAttribute("data-reset")] = ""; update(false); };
+  });
   themeSel.addEventListener("change", function () { update(true); });
   $("f-program").addEventListener("input", function () { update(false); });
   // Logo: keep the original, derive the shown version (optionally with white knocked out).
@@ -572,6 +631,9 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
     q.set("theme", o.theme);
     q.set("accent", o.accent.replace("#", ""));
     if (o.boxW > 0) q.set("boxw", o.boxW);
+    if (o.plateColor) q.set("platecolor", o.plateColor.replace("#", ""));
+    if (o.nameColor) q.set("namecolor", o.nameColor.replace("#", ""));
+    if (o.roleColor) q.set("rolecolor", o.roleColor.replace("#", ""));
     if (o.boxH > 0) q.set("boxh", o.boxH);
     if (o.logoSrc) {
       q.set("logo", "1");
@@ -642,7 +704,7 @@ input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); bo
       if (p.length === 2) return { line: idx, section: "", role: p[0], name: p[1] };
       return { line: idx, section: p[0], role: p[1], name: p.slice(2).join(" | ") };
     }).filter(Boolean).map(function (it) {
-      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "logoSide", "boxW", "boxH"].forEach(function (k) { it[k] = base[k]; });
+      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "logoSide", "boxW", "boxH", "plateColor", "nameColor", "roleColor"].forEach(function (k) { it[k] = base[k]; });
       return it;
     });
   }
