@@ -56,7 +56,7 @@ body.overlay-mode { background: transparent; overflow: hidden; }
 }
 .pill:empty { display: none; }
 .row { display: flex; align-items: stretch; position: relative; }
-.row > .logo { position: absolute; top: calc(50% - var(--logo-size, 92px) / 2); z-index: 2; }
+.row > .logo { position: absolute; top: calc(50% - var(--logo-h, 92px) / 2); z-index: 2; }
 .bar { width: 12px; background: var(--accent); border-radius: 4px 0 0 4px; }
 .plate {
   display: flex; align-items: center; gap: 26px;
@@ -65,11 +65,12 @@ body.overlay-mode { background: transparent; overflow: hidden; }
   border-radius: 0 10px 10px 0;
   box-shadow: 0 10px 30px rgba(0,0,0,.28);
 }
-.logo { width: var(--logo-size, 92px); height: var(--logo-size, 92px); border-radius: 50%; background: #fff; padding: calc(var(--logo-size, 92px) * 0.1); flex: none; display: none; }
+.logo { width: var(--logo-w, 92px); height: var(--logo-h, 92px); border-radius: 50%; background: #fff; padding: calc(min(var(--logo-w, 92px), var(--logo-h, 92px)) * 0.1); flex: none; display: none; }
 .logo.on { display: block; }
 .logo-img { width: 100%; height: 100%; background: center / contain no-repeat; }
 .logo.bare { background: transparent; border-radius: 0; padding: 0; }
 .logo.white .logo-img { filter: brightness(0) invert(1); }
+.logo.stretch .logo-img { background-size: 100% 100%; }
 .logo.free { position: absolute; z-index: 2; }
 .preview .logo.on { cursor: grab; touch-action: none; }
 .preview .logo.on:active { cursor: grabbing; }
@@ -112,6 +113,7 @@ body.overlay-mode { background: transparent; overflow: hidden; }
 .card h2 { font-size: 15px; margin: 0 0 12px; }
 input[type=range] { width: 100%; }
 label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 10px 0 4px; text-transform: uppercase; letter-spacing: .06em; }
+.maker label .val { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--ink); margin-left: 6px; }
 label.check { display: flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--ink); font-weight: 500; margin: 10px 0 0; cursor: pointer; }
 input[type=text], select, textarea {
   width: 100%; font: inherit; font-size: 15px; color: var(--ink); background: var(--page);
@@ -192,7 +194,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   var THEMES = { royal: "Royal (dark plate)", light: "Light (white plate)", minimal: "Minimal (no box)" };
   var ACCENTS = ["#d4a63a", "#2bb3a3", "#3b82f6", "#c0392b", "#8e5bd8", "#e67e22"];
-  var DEFAULTS = { section: "Sabbath School", role: "Opening Prayer", name: "Jane Mensah", theme: "royal", accent: "#d4a63a", logoSize: 92, logoBg: "circle", logoKnockout: false, logoWhite: false, logoX: null, logoY: null, logoPlace: "box" };
+  var DEFAULTS = { section: "Sabbath School", role: "Opening Prayer", name: "Jane Mensah", theme: "royal", accent: "#d4a63a", logoW: 92, logoH: 92, logoKeep: true, logoBg: "circle", logoKnockout: false, logoWhite: false, logoX: null, logoY: null, logoPlace: "box", boxW: 0, boxH: 0 };
   var SAMPLE_PROGRAM = [
     "Sabbath School | Superintendent | Name Here",
     "Sabbath School | Facilitator | Name Here",
@@ -218,15 +220,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     logo.classList.toggle("on", !!o.logoSrc);
     logo.classList.toggle("bare", o.logoBg === "none");
     logo.classList.toggle("white", !!o.logoWhite);
-    logo.style.setProperty("--logo-size", (+o.logoSize || 92) + "px");
+    var lw = +o.logoW || +o.logoSize || 92, lh = +o.logoH || +o.logoSize || 92;
+    logo.style.setProperty("--logo-w", lw + "px");
+    logo.style.setProperty("--logo-h", lh + "px");
+    logo.classList.toggle("stretch", !!o.logoStretch);
     logo.querySelector(".logo-img").style.backgroundImage = o.logoSrc ? 'url("' + o.logoSrc + '")' : "";
     // Logo sits in the name box unless it has been dragged to its own spot on the frame.
     // In the name box, the logo overlays the box (so it never makes the box taller);
     // the text moves right to make room, so the box gets wider instead.
     var plate = stage.querySelector(".plate"), row = stage.querySelector(".row"), pill = stage.querySelector(".pill");
-    var size = +o.logoSize || 92, minimal = stage.classList.contains("t-minimal");
+    var size = lw, minimal = stage.classList.contains("t-minimal");
     var barW = minimal ? 6 : 12, padL = minimal ? 26 : 30;
     plate.style.paddingLeft = ""; pill.style.marginLeft = "";
+    plate.style.minWidth = +o.boxW > 0 ? o.boxW + "px" : "";
+    plate.style.minHeight = +o.boxH > 0 ? o.boxH + "px" : "";
     if (typeof o.logoX === "number" && typeof o.logoY === "number") {
       if (logo.parentNode !== stage) stage.appendChild(logo);
       logo.classList.add("free");
@@ -287,7 +294,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       theme: params.get("theme") || "royal",
       accent: params.get("accent") ? "#" + params.get("accent").replace(/^#/, "") : DEFAULTS.accent,
       logoSrc: logoParam ? (logoParam === "1" ? "logo.png" : logoParam) : "",
-      logoSize: params.get("logosize") || 92,
+      logoW: +(params.get("logow") || params.get("logosize") || 92),
+      logoH: +(params.get("logoh") || params.get("logosize") || 92),
+      logoStretch: params.get("logostretch") === "1",
+      boxW: +(params.get("boxw") || 0),
+      boxH: +(params.get("boxh") || 0),
       logoBg: params.get("logobg") || "circle",
       logoWhite: params.get("logocolor") === "white",
       logoX: params.has("logox") ? +params.get("logox") : null,
@@ -312,7 +323,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   var app = document.getElementById("app");
   app.innerHTML =
     '<div class="maker">' +
-      '<h1>Lower Third Maker <span class="ver">Version 4</span></h1>' +
+      '<h1>Lower Third Maker <span class="ver">Version 5</span></h1>' +
       '<p class="sub">Type a name and role, pick a look, then <b>Copy Wirecast link</b> (for an animated Web Page shot) or <b>Download PNG</b> (a still image you can drag into Wirecast).</p>' +
       '<div class="grid">' +
         '<div class="card">' +
@@ -323,10 +334,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           '<label for="f-theme">Look</label><select id="f-theme"></select>' +
           '<label>Accent colour</label>' +
           '<div class="inline"><input type="color" id="f-accent"><div class="swatches" id="swatches"></div></div>' +
+          '<label for="f-boxw">Box width<span class="val" id="v-boxw"></span></label><input type="range" id="f-boxw" min="0" max="1600" step="10">' +
+          '<label for="f-boxh">Box height<span class="val" id="v-boxh"></span></label><input type="range" id="f-boxh" min="0" max="400" step="4">' +
+          '<div class="hint">All the way left = the box fits the text by itself.</div>' +
           '<label for="f-logo">Logo (optional, PNG)</label>' +
           '<input type="file" id="f-logo" accept="image/png,image/jpeg,image/svg+xml">' +
           '<div id="logoOpts" hidden>' +
-            '<label for="f-logosize">Logo size</label><input type="range" id="f-logosize" min="60" max="170" step="2">' +
+            '<label for="f-logow">Logo width<span class="val" id="v-logow"></span></label><input type="range" id="f-logow" min="30" max="500" step="2">' +
+            '<label for="f-logoh">Logo height<span class="val" id="v-logoh"></span></label><input type="range" id="f-logoh" min="30" max="400" step="2">' +
+            '<label class="check"><input type="checkbox" id="f-logokeep"> Keep the logo\'s shape (width and height move together)</label>' +
             '<label for="f-logobg">Behind the logo</label>' +
             '<select id="f-logobg"><option value="circle">White circle</option><option value="none">Nothing (transparent)</option></select>' +
             '<label class="check"><input type="checkbox" id="f-logoknock"> Remove white background from the logo image</label>' +
@@ -372,7 +388,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   $("f-section").value = state.section; $("f-role").value = state.role; $("f-name").value = state.name;
   themeSel.value = state.theme; $("f-accent").value = state.accent; $("f-program").value = state.program || SAMPLE_PROGRAM;
-  $("f-logosize").value = state.logoSize; $("f-logobg").value = state.logoBg;
+  $("f-logow").value = state.logoW; $("f-logoh").value = state.logoH; $("f-logokeep").checked = state.logoKeep !== false;
+  $("f-boxw").value = state.boxW; $("f-boxh").value = state.boxH;
+  $("f-logobg").value = state.logoBg;
   $("f-logoknock").checked = !!state.logoKnockout; $("f-logowhite").checked = !!state.logoWhite;
   $("f-logoplace").value = logoPos ? (state.logoPlace && state.logoPlace !== "box" ? state.logoPlace : "custom") : "box";
 
@@ -384,7 +402,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return {
       section: $("f-section").value.trim(), role: $("f-role").value.trim(), name: $("f-name").value.trim(),
       theme: themeSel.value, accent: $("f-accent").value, logoSrc: logoData,
-      logoSize: +$("f-logosize").value, logoBg: $("f-logobg").value,
+      logoW: +$("f-logow").value, logoH: +$("f-logoh").value, logoKeep: $("f-logokeep").checked,
+      logoStretch: !$("f-logokeep").checked, boxW: +$("f-boxw").value, boxH: +$("f-boxh").value,
+      logoBg: $("f-logobg").value,
       logoKnockout: $("f-logoknock").checked, logoWhite: $("f-logowhite").checked,
       logoX: logoPos ? logoPos.x : null, logoY: logoPos ? logoPos.y : null
     };
@@ -396,8 +416,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     scaleTo(pStage, preview);
     if (animate) replay(pStage);
     $("logoOpts").hidden = !logoData;
+    $("v-logow").textContent = o.logoW + " px"; $("v-logoh").textContent = o.logoH + " px";
+    $("v-boxw").textContent = o.boxW > 0 ? o.boxW + " px" : "auto";
+    $("v-boxh").textContent = o.boxH > 0 ? o.boxH + " px" : "auto";
     state = { section: o.section, role: o.role, name: o.name, theme: o.theme, accent: o.accent, program: $("f-program").value,
-      logoSize: o.logoSize, logoBg: o.logoBg, logoKnockout: o.logoKnockout, logoWhite: o.logoWhite,
+      logoW: o.logoW, logoH: o.logoH, logoKeep: o.logoKeep, boxW: o.boxW, boxH: o.boxH,
+      logoBg: o.logoBg, logoKnockout: o.logoKnockout, logoWhite: o.logoWhite,
       logoX: o.logoX, logoY: o.logoY, logoPlace: $("f-logoplace").value };
     save(state);
     renderList();
@@ -428,6 +452,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       img.src = src;
     });
   }
+  var logoAspect = 1;  // width / height of the uploaded logo image
+  function measureLogo(src, cb) {
+    var img = new Image();
+    img.onload = function () { logoAspect = (img.naturalWidth && img.naturalHeight) ? img.naturalWidth / img.naturalHeight : 1; cb(); };
+    img.onerror = function () { cb(); };
+    img.src = src;
+  }
+  function fitHeightToWidth() {
+    var w = +$("f-logow").value;
+    $("f-logoh").value = Math.round(w / logoAspect);
+  }
   function refreshLogo(animate) {
     if (!logoOriginal) { logoData = ""; update(animate); return; }
     var p = $("f-logoknock").checked ? knockOutWhite(logoOriginal) : Promise.resolve(logoOriginal);
@@ -440,20 +475,38 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     r.onload = function () {
       logoOriginal = r.result;
       try { localStorage.setItem("lt-logo", logoOriginal); } catch (err) {}
-      refreshLogo(true);
+      measureLogo(logoOriginal, function () {
+        // Start a new logo at a normal height, with its width following its shape.
+        var h = 92, w = Math.round(h * logoAspect);
+        if (w > 500) { w = 500; h = Math.round(w / logoAspect); }
+        $("f-logow").value = Math.max(30, w); $("f-logoh").value = Math.max(30, h);
+        refreshLogo(true);
+      });
     };
     r.readAsDataURL(f);
   });
   // Corner positions depend on the logo size, so they are recomputed when it changes.
   function placeLogo() {
-    var size = +$("f-logosize").value, place = $("f-logoplace").value;
+    var size = +$("f-logow").value, place = $("f-logoplace").value;
     if (place === "tr") logoPos = { x: 1920 - size - 80, y: 60 };
     else if (place === "tl") logoPos = { x: 80, y: 60 };
     else if (place === "box") logoPos = null;
     else if (!logoPos) logoPos = { x: 1920 - size - 80, y: 60 };
   }
   $("f-logoplace").addEventListener("change", function () { placeLogo(); update(true); });
-  $("f-logosize").addEventListener("input", function () { placeLogo(); update(false); });
+  $("f-logow").addEventListener("input", function () {
+    if ($("f-logokeep").checked) fitHeightToWidth();
+    placeLogo(); update(false);
+  });
+  $("f-logoh").addEventListener("input", function () {
+    if ($("f-logokeep").checked) $("f-logow").value = Math.round(+$("f-logoh").value * logoAspect);
+    placeLogo(); update(false);
+  });
+  $("f-logokeep").addEventListener("change", function () {
+    if ($("f-logokeep").checked) fitHeightToWidth();
+    placeLogo(); update(false);
+  });
+  ["f-boxw", "f-boxh"].forEach(function (id) { $(id).addEventListener("input", function () { update(false); }); });
   ["f-logobg", "f-logowhite"].forEach(function (id) { $(id).addEventListener("change", function () { update(false); }); });
   $("f-logoknock").addEventListener("change", function () { refreshLogo(false); });
   // Drag the logo around the preview (positions are stored in 1920x1080 frame pixels).
@@ -467,10 +520,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var px = e.clientX, py = e.clientY;
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
     function move(ev) {
-      var size = +$("f-logosize").value;
+      var lw = +$("f-logow").value, lh = +$("f-logoh").value;
       logoPos = {
-        x: clamp(Math.round(startX + (ev.clientX - px) / k), 0, 1920 - size),
-        y: clamp(Math.round(startY + (ev.clientY - py) / k), 0, 1080 - size)
+        x: clamp(Math.round(startX + (ev.clientX - px) / k), 0, 1920 - lw),
+        y: clamp(Math.round(startY + (ev.clientY - py) / k), 0, 1080 - lh)
       };
       $("f-logoplace").value = "custom";
       update(false);
@@ -500,9 +553,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     q.set("name", o.name || "");
     q.set("theme", o.theme);
     q.set("accent", o.accent.replace("#", ""));
+    if (o.boxW > 0) q.set("boxw", o.boxW);
+    if (o.boxH > 0) q.set("boxh", o.boxH);
     if (o.logoSrc) {
       q.set("logo", "1");
-      if (o.logoSize !== 92) q.set("logosize", o.logoSize);
+      q.set("logow", o.logoW); q.set("logoh", o.logoH);
+      if (o.logoStretch) q.set("logostretch", "1");
       if (o.logoBg === "none") q.set("logobg", "none");
       if (o.logoWhite) q.set("logocolor", "white");
       if (typeof o.logoX === "number") { q.set("logox", o.logoX); q.set("logoy", o.logoY); }
@@ -567,7 +623,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (p.length === 2) return { section: "", role: p[0], name: p[1] };
       return { section: p[0], role: p[1], name: p.slice(2).join(" | ") };
     }).filter(Boolean).map(function (it) {
-      ["theme", "accent", "logoSrc", "logoSize", "logoBg", "logoWhite", "logoX", "logoY"].forEach(function (k) { it[k] = base[k]; });
+      ["theme", "accent", "logoSrc", "logoW", "logoH", "logoStretch", "logoBg", "logoWhite", "logoX", "logoY", "boxW", "boxH"].forEach(function (k) { it[k] = base[k]; });
       return it;
     });
   }
@@ -622,11 +678,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove("show"); }, 3200);
   }
   function load() {
-    try { var s = JSON.parse(localStorage.getItem("lt-maker") || "null"); if (s) return Object.assign({}, DEFAULTS, s); } catch (e) {}
+    try {
+      var s = JSON.parse(localStorage.getItem("lt-maker") || "null");
+      if (s) {
+        if (s.logoSize && !s.logoW) { s.logoW = s.logoH = s.logoSize; }  // older versions had one size
+        return Object.assign({}, DEFAULTS, s);
+      }
+    } catch (e) {}
     return Object.assign({}, DEFAULTS);
   }
   function save(s) { try { localStorage.setItem("lt-maker", JSON.stringify(s)); } catch (e) {} }
 
+  if (logoOriginal) measureLogo(logoOriginal, function () {});
   refreshLogo(false);
   waitForFonts().then(function () { update(true); });
 })();
