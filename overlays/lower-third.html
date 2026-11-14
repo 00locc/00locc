@@ -55,7 +55,8 @@ body.overlay-mode { background: transparent; overflow: hidden; }
   padding: 7px 18px 6px; border-radius: 6px 6px 0 0; margin-left: 12px;
 }
 .pill:empty { display: none; }
-.row { display: flex; align-items: stretch; }
+.row { display: flex; align-items: stretch; position: relative; }
+.row > .logo { position: absolute; top: calc(50% - var(--logo-size, 92px) / 2); z-index: 2; }
 .bar { width: 12px; background: var(--accent); border-radius: 4px 0 0 4px; }
 .plate {
   display: flex; align-items: center; gap: 26px;
@@ -103,6 +104,7 @@ body.overlay-mode { background: transparent; overflow: hidden; }
 /* ---------- Maker (setup page) ---------- */
 .maker { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
 .maker h1 { font-size: 22px; margin: 4px 0 2px; }
+.maker h1 .ver { font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 20px; padding: 2px 8px; vertical-align: middle; }
 .maker .sub { color: var(--muted); font-size: 14px; margin: 0 0 18px; line-height: 1.5; }
 .grid { display: grid; grid-template-columns: 340px 1fr; gap: 18px; align-items: start; }
 @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
@@ -190,7 +192,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   var THEMES = { royal: "Royal (dark plate)", light: "Light (white plate)", minimal: "Minimal (no box)" };
   var ACCENTS = ["#d4a63a", "#2bb3a3", "#3b82f6", "#c0392b", "#8e5bd8", "#e67e22"];
-  var DEFAULTS = { section: "Sabbath School", role: "Opening Prayer", name: "Jane Mensah", theme: "royal", accent: "#d4a63a", logoSize: 92, logoBg: "circle", logoKnockout: false, logoWhite: false, logoX: null, logoY: null };
+  var DEFAULTS = { section: "Sabbath School", role: "Opening Prayer", name: "Jane Mensah", theme: "royal", accent: "#d4a63a", logoSize: 92, logoBg: "circle", logoKnockout: false, logoWhite: false, logoX: null, logoY: null, logoPlace: "box" };
   var SAMPLE_PROGRAM = [
     "Sabbath School | Superintendent | Name Here",
     "Sabbath School | Facilitator | Name Here",
@@ -219,15 +221,24 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     logo.style.setProperty("--logo-size", (+o.logoSize || 92) + "px");
     logo.querySelector(".logo-img").style.backgroundImage = o.logoSrc ? 'url("' + o.logoSrc + '")' : "";
     // Logo sits in the name box unless it has been dragged to its own spot on the frame.
-    var plate = stage.querySelector(".plate");
+    // In the name box, the logo overlays the box (so it never makes the box taller);
+    // the text moves right to make room, so the box gets wider instead.
+    var plate = stage.querySelector(".plate"), row = stage.querySelector(".row"), pill = stage.querySelector(".pill");
+    var size = +o.logoSize || 92, minimal = stage.classList.contains("t-minimal");
+    var barW = minimal ? 6 : 12, padL = minimal ? 26 : 30;
+    plate.style.paddingLeft = ""; pill.style.marginLeft = "";
     if (typeof o.logoX === "number" && typeof o.logoY === "number") {
       if (logo.parentNode !== stage) stage.appendChild(logo);
       logo.classList.add("free");
       logo.style.left = o.logoX + "px"; logo.style.top = o.logoY + "px";
     } else {
-      if (logo.parentNode !== plate) plate.insertBefore(logo, plate.firstChild);
+      if (logo.parentNode !== row) row.appendChild(logo);
       logo.classList.remove("free");
-      logo.style.left = ""; logo.style.top = "";
+      logo.style.left = (barW + padL) + "px"; logo.style.top = "";
+      if (o.logoSrc) {
+        plate.style.paddingLeft = (padL + size + 26) + "px";
+        pill.style.marginLeft = (barW + padL + size + 26) + "px";
+      }
     }
     fitText(stage);
   }
@@ -301,7 +312,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   var app = document.getElementById("app");
   app.innerHTML =
     '<div class="maker">' +
-      '<h1>Lower Third Maker</h1>' +
+      '<h1>Lower Third Maker <span class="ver">Version 4</span></h1>' +
       '<p class="sub">Type a name and role, pick a look, then <b>Copy Wirecast link</b> (for an animated Web Page shot) or <b>Download PNG</b> (a still image you can drag into Wirecast).</p>' +
       '<div class="grid">' +
         '<div class="card">' +
@@ -320,9 +331,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             '<select id="f-logobg"><option value="circle">White circle</option><option value="none">Nothing (transparent)</option></select>' +
             '<label class="check"><input type="checkbox" id="f-logoknock"> Remove white background from the logo image</label>' +
             '<label class="check"><input type="checkbox" id="f-logowhite"> Make the logo all white</label>' +
-            '<div class="hint">Drag the logo in the preview to move it anywhere on the screen.</div>' +
-            '<div class="btns"><button class="btn sm" type="button" id="b-logoback">Put logo back in the name box</button>' +
-            '<button class="btn sm" type="button" id="b-logoclear">Remove logo</button></div>' +
+            '<label for="f-logoplace">Logo position</label>' +
+            '<select id="f-logoplace"><option value="box">In the name box</option><option value="tr">Top right corner</option>' +
+            '<option value="tl">Top left corner</option><option value="custom">Where I dragged it</option></select>' +
+            '<div class="hint">You can also drag the logo in the preview to put it anywhere.</div>' +
+            '<div class="btns"><button class="btn sm" type="button" id="b-logoclear">Remove logo</button></div>' +
           '</div>' +
           '<div class="hint">The maker remembers your logo. For the Wirecast link, also save it as <b>logo.png</b> in the same folder as this file.</div>' +
           '<div class="btns">' +
@@ -361,6 +374,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   themeSel.value = state.theme; $("f-accent").value = state.accent; $("f-program").value = state.program || SAMPLE_PROGRAM;
   $("f-logosize").value = state.logoSize; $("f-logobg").value = state.logoBg;
   $("f-logoknock").checked = !!state.logoKnockout; $("f-logowhite").checked = !!state.logoWhite;
+  $("f-logoplace").value = logoPos ? (state.logoPlace && state.logoPlace !== "box" ? state.logoPlace : "custom") : "box";
 
   var preview = $("preview");
   var pStage = makeStage();
@@ -384,8 +398,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     $("logoOpts").hidden = !logoData;
     state = { section: o.section, role: o.role, name: o.name, theme: o.theme, accent: o.accent, program: $("f-program").value,
       logoSize: o.logoSize, logoBg: o.logoBg, logoKnockout: o.logoKnockout, logoWhite: o.logoWhite,
-      logoX: o.logoX, logoY: o.logoY };
-    $("b-logoback").hidden = !logoPos;
+      logoX: o.logoX, logoY: o.logoY, logoPlace: $("f-logoplace").value };
     save(state);
     renderList();
   }
@@ -431,7 +444,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     };
     r.readAsDataURL(f);
   });
-  $("f-logosize").addEventListener("input", function () { update(false); });
+  // Corner positions depend on the logo size, so they are recomputed when it changes.
+  function placeLogo() {
+    var size = +$("f-logosize").value, place = $("f-logoplace").value;
+    if (place === "tr") logoPos = { x: 1920 - size - 80, y: 60 };
+    else if (place === "tl") logoPos = { x: 80, y: 60 };
+    else if (place === "box") logoPos = null;
+    else if (!logoPos) logoPos = { x: 1920 - size - 80, y: 60 };
+  }
+  $("f-logoplace").addEventListener("change", function () { placeLogo(); update(true); });
+  $("f-logosize").addEventListener("input", function () { placeLogo(); update(false); });
   ["f-logobg", "f-logowhite"].forEach(function (id) { $(id).addEventListener("change", function () { update(false); }); });
   $("f-logoknock").addEventListener("change", function () { refreshLogo(false); });
   // Drag the logo around the preview (positions are stored in 1920x1080 frame pixels).
@@ -450,6 +472,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         x: clamp(Math.round(startX + (ev.clientX - px) / k), 0, 1920 - size),
         y: clamp(Math.round(startY + (ev.clientY - py) / k), 0, 1080 - size)
       };
+      $("f-logoplace").value = "custom";
       update(false);
     }
     function up() {
@@ -461,7 +484,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", up);
   });
-  $("b-logoback").onclick = function () { logoPos = null; update(true); };
   $("b-logoclear").onclick = function () {
     logoOriginal = ""; $("f-logo").value = "";
     try { localStorage.removeItem("lt-logo"); } catch (e) {}
